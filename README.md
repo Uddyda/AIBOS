@@ -1,6 +1,2 @@
 # AIBOS
-# AIBOS
-# AIBOS
-# AIBOS
-# AIBOS
-# AIBOS
+
