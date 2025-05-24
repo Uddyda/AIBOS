@@ -174,6 +174,18 @@ def solve_with_or_tools(config):
     model = cp_model.CpModel()
     x = create_variables(model, staff_list, days_in_month, work_types)
 
+    # ▼「priority_assignmentsに含まれないスタッフは業務wできない」制約
+    priority_map = config["priority_assignments"]
+    for w, pinfo in priority_map.items():
+        union_set = set(pinfo.get("primary", [])) \
+                  | set(pinfo.get("secondary", [])) \
+                  | set(pinfo.get("third", []))
+        for s in staff_list:
+            if s not in union_set:
+                for d in range(days_in_month):
+                    model.Add(x[s][d][w] == 0)
+
+
     # primary+secondary+third constraints
     all_secondary_vars, all_third_vars = add_priority_constraints(model, x, config, staff_list, days_in_month)
 
