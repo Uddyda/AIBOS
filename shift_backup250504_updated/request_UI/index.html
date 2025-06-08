@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>シフト提出状況</title>
+    <style>
+      #adminButton {
+        position: absolute;
+        top: 10px;
+        right: 20px;
+      }
+      #overlay {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.5);
+        z-index: 999;
+      }
+      #popup {
+        background: white;
+        width: 300px;
+        margin: 100px auto;
+        padding: 20px;
+        border-radius: 10px;
+        text-align: center;
+      }
+    </style>
+  </head>
+  <body>
+    <h2>従業員ログイン</h2>
+    <form method="post">
+      <label>名前を入力してください：</label>
+      <input name="name" required />
+      <button type="submit">勤務時間を編集</button>
+    </form>
+
+    <button id="adminButton" onclick="showPasswordPopup()">
+      提出を締め切る
+    </button>
+
+    <div id="overlay">
+      <div id="popup">
+        <h3>パスワードを入力してください</h3>
+        <input type="password" id="adminPass" placeholder="パスワード" />
+        <br /><br />
+        <button onclick="submitClose()">提出を締め切る</button>
+        <button onclick="closePopup()">キャンセル</button>
+      </div>
+    </div>
+
+    <hr />
+    <h3>現在の提出状況</h3>
+    {% if img_base64 %}
+    <img src="data:image/png;base64,{{ img_base64 }}" alt="現在のシフト" />
+    {% else %}
+    <p>まだ誰も提出していません。</p>
+    {% endif %}
+
+    <script>
+      function showPasswordPopup() {
+        document.getElementById("overlay").style.display = "block";
+      }
+      function closePopup() {
+        document.getElementById("overlay").style.display = "none";
+      }
+      function submitClose() {
+        const pass = document.getElementById("adminPass").value;
+        fetch("/lock", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ password: pass }),
+        })
+          .then((res) => res.json())
+          .then((data) => {
+            if (data.status === "success") {
+              alert(data.message);
+              location.reload();
+            } else {
+              alert("⚠ パスワードが違います。");
+              closePopup();
+            }
+          });
+      }
+    </script>
+  </body>
+</html>
