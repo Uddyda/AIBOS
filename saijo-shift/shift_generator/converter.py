@@ -1,9 +1,61 @@
 import json
+import datetime
+import calendar
+
+# 追加: 六曜判定用ライブラリ
+# pip install rokuyou
+from rokuyou import Rokuyou
 
 # 旧JSONファイルのパス
 JSON_BEFORE = "./server/output/sample.json"
 # 変換後の新JSONファイルのパス
 JSON_AFTER = "./new.json"
+
+def create_calendar(year: int):
+    """
+    指定した year について、1月～12月の各日付を取得。
+    六曜ライブラリ(rokuyou)を使って友引の日のみを抽出して返す。
+    
+    戻り値サンプル:
+    {
+      "January": {
+         "days_in_month": 31,
+         "friend_days": [1, 6, 11, ...]
+      },
+      "February": {
+         "days_in_month": 29,
+         "friend_days": [...]
+      },
+      ...
+      "December": { ... }
+    }
+    """
+    # 月英名と対応させるためのリスト
+    month_names = [
+        "January", "February", "March", "April", "May", "June",
+        "July", "August", "September", "October", "November", "December"
+    ]
+    data = {}
+
+    for month in range(1, 13):
+        # 該当月の日数を取得
+        days_in_month = calendar.monthrange(year, month)[1]
+
+        # 友引の日を探す
+        friend_days = []
+        for day in range(1, days_in_month + 1):
+            dt = datetime.date(year, month, day)
+            r = Rokuyou(dt)
+            if r.rokuyou_jp == "友引":
+                friend_days.append(day)
+
+        data[month_names[month - 1]] = {
+            "days_in_month": days_in_month,
+            "friend_days": friend_days
+        }
+
+    return data
+
 
 def transform_data(old_json):
     """
@@ -13,22 +65,22 @@ def transform_data(old_json):
        （各 priority に展開後の従業員名を割り当て、 third に dummyを20名）
     3) daily_requirements, work_constraints, year をそのまま or 必要に応じて変換コピー
     4) 最終的に positions を type順でソート
+    5) (追加) 指定した year からカレンダーを作り "calendar" キーで格納
     """
+
     new_json = {}
 
     #
     # (1) year
     #
-    new_json["year"] = old_json.get("year", 2025)
+    year = old_json.get("year", 2025)
+    new_json["year"] = year
 
     #
     # (2) roles => positions の展開
     #
-    #   1) 役職の count に応じて末尾に A, B, C... を付与しながら全員作る
-    #   2) どの役職がどの展開名になったかを後で使えるように覚えておく
-    #
     new_json["positions"] = {}
-    expanded_roles = {}  # { "統括": ["統括A"], "火葬員": ["火葬員A","火葬員B",..], ... }
+    expanded_roles = {}
     alpha = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 
     roles_data = old_json.get("roles", {})
@@ -47,30 +99,16 @@ def transform_data(old_json):
 
     #
     # (3) priority_assignments
-    # 
-    #   role_capability から仕事ごとの primary, secondary に「展開後の従業員名」を配置
-    #   例:
-    #     old_json["role_capability"] = {
-    #       "責": { "primary":["統括"], "secondary":["副"], "third":[] },
-    #       ...
-    #     }
-    #     => new_json["priority_assignments"]["責"] = {
-    #           "primary": ["統括A"],
-    #           "secondary": ["副A"],
-    #           "third": [N1..N20]
-    #        }
     #
     new_json["priority_assignments"] = {}
     dummy_names = [f"N{i}" for i in range(1, 21)]
 
     capability_data = old_json.get("role_capability", {})
     for work_key, capability_info in capability_data.items():
-        # 各 key: "primary","secondary","third" が役職リスト(例: ["統括", "副"])を持つ
         primary_roles = capability_info.get("primary", [])
         secondary_roles = capability_info.get("secondary", [])
-        third_roles = capability_info.get("third", [])  # 今回は無視して dummy だけにする場合でも一応取得
+        third_roles = capability_info.get("third", [])
 
-        # 役職名を展開後の従業員名に変換
         expanded_primary = []
         for r in primary_roles:
             expanded_primary.extend(expanded_roles.get(r, []))
@@ -79,8 +117,7 @@ def transform_data(old_json):
         for r in secondary_roles:
             expanded_secondary.extend(expanded_roles.get(r, []))
 
-        # third は必ず dummy 20人を入れる、という指定なら下記のとおり固定
-        # （もし old_json の third をあわせて含みたいなら、ここで併合してもOK）
+        # third は dummy固定
         expanded_third = dummy_names
 
         new_json["priority_assignments"][work_key] = {
@@ -104,9 +141,6 @@ def transform_data(old_json):
 
     #
     # (5) work_constraints をコピー
-    #
-    #     旧: { "employee": { "weekly_days_off":2, ... } }
-    #     => 新: { "employee": { "days_off_per_7days":2, ... }, ...}
     #
     if "work_constraints" in old_json:
         wc_old = old_json["work_constraints"]
@@ -134,18 +168,23 @@ def transform_data(old_json):
     sorted_positions = sorted(position_items, key=lambda x: type_order.get(x[1], 99))
     new_json["positions"] = dict(sorted_positions)
 
+    #
+    # (8) 追加: カレンダー情報を付与
+    #
+    new_json["calendar"] = create_calendar(year)
+
     return new_json
 
 
 def main():
-    # 1) 旧JSONを読み込む
+    # (1) 旧JSONを読み込む
     with open(JSON_BEFORE, "r", encoding="utf-8") as f:
         old_data = json.load(f)
 
-    # 2) 変換
+    # (2) 変換
     new_data = transform_data(old_data)
 
-    # 3) 新JSONを出力
+    # (3) 新JSONを出力
     with open(JSON_AFTER, "w", encoding="utf-8") as f:
         json.dump(new_data, f, indent=2, ensure_ascii=False)
 
