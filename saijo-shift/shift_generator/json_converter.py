@@ -1,55 +1,72 @@
 import json
-import datetime
 import calendar
+import os
 
-# 追加: 六曜判定用ライブラリ
-# pip install rokuyou
-from rokuyou import Rokuyou
-
-# 旧JSONファイルのパス
-JSON_BEFORE = "./server/output/sample.json"
-# 変換後の新JSONファイルのパス
+current_path = os.getcwd()
+print(current_path)
+# 旧JSONファイル (あなたの既存の入力用)
+JSON_BEFORE = "../server/output/define.json"
+# 新JSONファイル (変換後の出力先)
 JSON_AFTER = "./new.json"
+# 六曜情報を含むJSONファイル
+ROKUYOU_JSON = "./rokuyou.json"
 
 def create_calendar(year: int):
     """
-    指定した year について、1月～12月の各日付を取得。
-    六曜ライブラリ(rokuyou)を使って友引の日のみを抽出して返す。
-    
-    戻り値サンプル:
+    指定された 'year' の1～12月分の「days_in_month」と「友引の日(friend_days)」を
+    ROKUYOU_JSON から取得して返す関数。
+
+    【想定する rokuyou.json の構造】
     {
-      "January": {
-         "days_in_month": 31,
-         "friend_days": [1, 6, 11, ...]
-      },
-      "February": {
-         "days_in_month": 29,
-         "friend_days": [...]
-      },
-      ...
-      "December": { ... }
+      "year": 2023,
+      "calendar": {
+        "April": [
+          { "day": 1, "rokuyo": "赤口" },
+          { "day": 2, "rokuyo": "先勝" },
+          { "day": 3, "rokuyo": "友引" },
+          ...
+        ],
+        "May": [...],
+        ...
+      }
     }
+
+    ここでは month_names に沿って "January"～"December" のキーを見に行き、
+    もし存在する場合のみ friend_days を抽出します。
     """
+    # (1) rokuyou.json を読み込む
+    with open(ROKUYOU_JSON, "r", encoding="utf-8") as f:
+        rokuyou_data = json.load(f)
+
+    # "calendar" キーに、月英名をキーとした六曜リストが入っている想定
+    # 例: rokuyou_data["calendar"]["April"] = [ { "day": 1, "rokuyo": "赤口" }, ... ]
+    input_calendar = rokuyou_data["calendar"]
+
     # 月英名と対応させるためのリスト
     month_names = [
-        "January", "February", "March", "April", "May", "June",
-        "July", "August", "September", "October", "November", "December"
+        "April", "May", "June", "July", "August", "September",
+        "October", "November", "December", "January", "February", "March", 
     ]
+
+    # 結果を格納する辞書
     data = {}
 
-    for month in range(1, 13):
-        # 該当月の日数を取得
-        days_in_month = calendar.monthrange(year, month)[1]
+    for m_name in month_names:
+        # rokuyou.json の "calendar" 内に、この月名が無い場合はスキップ
+        if m_name not in input_calendar:
+            continue
+        
+        # 例: [ { "day": 1, "rokuyo": "赤口" }, { "day": 2, "rokuyo": "先勝" }, ... ]
+        days_list = input_calendar[m_name]
 
-        # 友引の日を探す
-        friend_days = []
-        for day in range(1, days_in_month + 1):
-            dt = datetime.date(year, month, day)
-            r = Rokuyou(dt)
-            if r.rokuyou_jp == "友引":
-                friend_days.append(day)
+        # days_in_month (月の日数) をリストの "day" の最大値から求める
+        days_in_month = max(item["day"] for item in days_list)
 
-        data[month_names[month - 1]] = {
+        # rokuyo が "友引" の日だけ取り出す
+        friend_days = [item["day"] for item in days_list if item["rokuyo"] == "友引"]
+
+        # データを格納
+        data[m_name] = {
             "days_in_month": days_in_month,
             "friend_days": friend_days
         }
@@ -71,7 +88,9 @@ def transform_data(old_json):
     new_json = {}
 
     #
-    # (1) year
+    # (1) year を取得
+    #
+    # old_json に "year": 2025 のように指定がなければ、デフォルトを 2025 とする
     #
     year = old_json.get("year", 2025)
     new_json["year"] = year
@@ -90,18 +109,20 @@ def transform_data(old_json):
 
         expanded_names = []
         for i in range(count):
+            # たとえば i=0なら 'A', i=1なら 'B' ...
             suffix = alpha[i] if i < len(alpha) else f"X{i}"
             expanded_name = f"{role_name}{suffix}"
             new_json["positions"][expanded_name] = rtype
             expanded_names.append(expanded_name)
 
+        # 例: "Manager" -> ["ManagerA", "ManagerB", ...]
         expanded_roles[role_name] = expanded_names
 
     #
-    # (3) priority_assignments
+    # (3) priority_assignments を生成
     #
     new_json["priority_assignments"] = {}
-    dummy_names = [f"N{i}" for i in range(1, 21)]
+    dummy_names = [f"N{i}" for i in range(1, 21)]  # N1〜N20
 
     capability_data = old_json.get("role_capability", {})
     for work_key, capability_info in capability_data.items():
@@ -127,11 +148,12 @@ def transform_data(old_json):
         }
 
     #
-    # (4) daily_requirements をそのままコピー
+    # (4) daily_requirements のコピー
     #
     if "daily_requirements" in old_json:
         new_json["daily_requirements"] = {}
         for key, val in old_json["daily_requirements"].items():
+            # 例: { "normal_min": 2, "normal_max": 4, "friend_min": 1, "friend_max": 3 }
             new_json["daily_requirements"][key] = {
                 "normal_min": val.get("normal_min", 0),
                 "normal_max": val.get("normal_max", 0),
@@ -140,13 +162,19 @@ def transform_data(old_json):
             }
 
     #
-    # (5) work_constraints をコピー
+    # (5) work_constraints のコピー
     #
     if "work_constraints" in old_json:
         wc_old = old_json["work_constraints"]
         new_json["work_constraints"] = {}
         for wtype in ["employee", "part_timer", "dummy"]:
             if wtype in wc_old:
+                # 例:
+                # {
+                #   "weekly_days_off": 2,
+                #   "max_consecutive_days": 5,
+                #   "min_monthly_workdays": 10
+                # }
                 new_json["work_constraints"][wtype] = {
                     "days_off_per_7days": wc_old[wtype].get("weekly_days_off", 0),
                     "max_consecutive_days": wc_old[wtype].get("max_consecutive_days", 0),
@@ -165,11 +193,13 @@ def transform_data(old_json):
     #
     position_items = list(new_json["positions"].items())
     type_order = {"employee": 0, "part_timer": 1, "dummy": 2}
+    # type_order.get(x[1], 99) により、employee=0, part_timer=1, dummy=2 と優先ソート
     sorted_positions = sorted(position_items, key=lambda x: type_order.get(x[1], 99))
     new_json["positions"] = dict(sorted_positions)
 
     #
-    # (8) 追加: カレンダー情報を付与
+    # (8) カレンダー情報を付与
+    #     rokuyou.json から、指定した year の1～12月を走査し、友引の日を抽出する
     #
     new_json["calendar"] = create_calendar(year)
 
@@ -177,11 +207,17 @@ def transform_data(old_json):
 
 
 def main():
+    """
+    メイン処理:
+    1) 旧JSON (sample.json) を読み込む
+    2) transform_data() で新しい構造に変換
+    3) new.json へ書き出す
+    """
     # (1) 旧JSONを読み込む
     with open(JSON_BEFORE, "r", encoding="utf-8") as f:
         old_data = json.load(f)
 
-    # (2) 変換
+    # (2) 変換処理を実行
     new_data = transform_data(old_data)
 
     # (3) 新JSONを出力

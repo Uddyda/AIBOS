@@ -96,11 +96,13 @@ function App() {
   });
 
   // =========================
-  // ② ファイル一覧の状態
+  // ② ステート一覧
   // =========================
   const [fileList, setFileList] = useState<string[]>([]);
   const [selectedFile, setSelectedFile] = useState<string>(""); // 選択中のファイル名(読込用)
   const [saveFilename, setSaveFilename] = useState<string>(""); // 新規保存用
+  const [showShiftCreate, setShowShiftCreate] = useState(false); // モーダル or ブロック表示切り替え用
+  const [fileForShift, setFileForShift] = useState<string>(""); // シフト作成に選択するファイル名
 
   // =========================
   // ③ 従業員選択用リスト
@@ -359,11 +361,115 @@ function App() {
   };
 
   // =========================
+  // ⑪ シフト作成実行機能
+  // =========================
+  const handleCreateShiftFile = async () => {
+    if (!fileForShift) {
+      alert("コピー元のファイルを選択してください");
+      return;
+    }
+    try {
+      // 1) 選んだファイルの内容を読み込む
+      const readRes = await fetch(
+        `http://localhost:3001/api/load-json?filename=${fileForShift}`
+      );
+      if (!readRes.ok) {
+        alert(`ファイル ${fileForShift}.json の読み込みに失敗しました。`);
+        return;
+      }
+      const fileData = await readRes.json();
+
+      // 2) define.json という名前で保存 (コピー)
+      const saveRes = await fetch(
+        `http://localhost:3001/api/save-json?filename=define`, // define.json
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(fileData),
+        }
+      );
+      if (!saveRes.ok) {
+        alert("define.json として保存に失敗しました。");
+        return;
+      }
+
+      alert(`${fileForShift}.json をコピーして define.json を作成しました！`);
+
+      // 表示を閉じる、選択をリセット
+      setFileForShift("");
+      setShowShiftCreate(false);
+    } catch (err) {
+      console.error(err);
+      alert("シフト作成中にエラーが発生しました。");
+    }
+  };
+
+  // =========================
   // 表示
   // =========================
   return (
     <div style={{ margin: "20px" }}>
       <h1>シフトツール (TypeScript版)</h1>
+
+      {/* 0) ▼▼▼ ここに「シフト作成」ボタンを追加 ▼▼▼ */}
+      <button
+        onClick={() => setShowShiftCreate(true)}
+        style={{ marginBottom: 20 }}
+      >
+        シフト作成
+      </button>
+      {showShiftCreate && (
+        <div
+          // ▼▼▼ オーバーレイ全体 ▼▼▼
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            width: "100vw",
+            height: "100vh",
+            backgroundColor: "rgba(0, 0, 0, 0.5)", // 背景を薄暗く
+            display: "flex",
+            justifyContent: "center",
+            alignItems: "center",
+            zIndex: 9999, // 最前面に表示
+          }}
+          onClick={() => setShowShiftCreate(false)} // オーバーレイ(背景)クリックで閉じる
+        >
+          <div
+            // ▼▼▼ ポップアップ(モーダル)本体 ▼▼▼
+            style={{
+              backgroundColor: "#fff",
+              padding: 20,
+              borderRadius: 8,
+              minWidth: 300,
+              position: "relative",
+            }}
+            onClick={(e) => e.stopPropagation()}
+            // モーダル自体のクリックが親(div)に伝播しないように
+          >
+            <h2>シフト作成</h2>
+            <p>使用するファイルを選択してください</p>
+            <select
+              value={fileForShift}
+              onChange={(e) => setFileForShift(e.target.value)}
+              style={{ display: "block", marginBottom: 12 }}
+            >
+              <option value="">--ファイルを選択してください--</option>
+              {fileList.map((f) => (
+                <option key={f} value={f}>
+                  {f}.json
+                </option>
+              ))}
+            </select>
+            <button onClick={handleCreateShiftFile} style={{ marginRight: 8 }}>
+              確定
+            </button>
+            <button onClick={() => setShowShiftCreate(false)}>
+              キャンセル
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* 1) ファイル操作エリア */}
       <section
