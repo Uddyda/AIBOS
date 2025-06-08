@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>{{ name }} さんの勤務可能時間</title>
+    <style>
+      .slot {
+        display: inline-block;
+        width: 80px;
+        padding: 10px;
+        margin: 5px;
+        border: 1px solid #ccc;
+        cursor: pointer;
+        text-align: center;
+      }
+      .selected {
+        background-color: #4caf50;
+        color: white;
+      }
+      #overlay {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background-color: rgba(0, 0, 0, 0.5);
+        z-index: 999;
+      }
+      #popup {
+        background: white;
+        width: 400px;
+        margin: 100px auto;
+        padding: 20px;
+        border-radius: 10px;
+        text-align: center;
+      }
+      #popup button {
+        margin: 10px;
+      }
+    </style>
+  </head>
+  <body>
+    <h2>{{ name }} さんの勤務可能時間を選択してください</h2>
+    <div id="grid">
+      {% for time in hours %}
+      <div
+        class="slot {% if time in available %}selected{% endif %}"
+        data-time="{{ time }}"
+      >
+        {{ time }}
+      </div>
+      {% endfor %}
+    </div>
+    <button onclick="confirmSave()">保存</button>
+
+    <!-- ポップアップ -->
+    <div id="overlay">
+      <div id="popup">
+        <h3>この時間で提出しますか？</h3>
+        <ul id="selectedList"></ul>
+        <button onclick="closePopup()">選び直す</button>
+        <button onclick="submitFinal()">決定する</button>
+      </div>
+    </div>
+
+    <script>
+      const slots = document.querySelectorAll(".slot");
+      slots.forEach((slot) => {
+        slot.addEventListener("click", () => slot.classList.toggle("selected"));
+      });
+
+      function confirmSave() {
+        const selected = [...document.querySelectorAll(".slot.selected")].map(
+          (el) => el.dataset.time
+        );
+        const list = document.getElementById("selectedList");
+        list.innerHTML = "";
+        selected.forEach((t) => {
+          const li = document.createElement("li");
+          li.textContent = t;
+          list.appendChild(li);
+        });
+        document.getElementById("overlay").style.display = "block";
+      }
+
+      function closePopup() {
+        document.getElementById("overlay").style.display = "none";
+      }
+
+      function submitFinal() {
+        const selected = [...document.querySelectorAll(".slot.selected")].map(
+          (el) => el.dataset.time
+        );
+        fetch("", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ available: selected }),
+        })
+          .then((res) => res.json())
+          .then((data) => {
+            if (data.status === "success") {
+              alert("✅ シフトを提出しました。トップ画面に戻ります。");
+              window.location.href = "/";
+            }
+          });
+      }
+    </script>
+  </body>
+</html>
