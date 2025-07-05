@@ -9,6 +9,7 @@ const PORT = 3001;
 
 // ------------ 設定値(必要に応じて変更) ------------
 const OUTPUT_DIR = path.join(__dirname, "output");
+const DEFINE_JSON_DIRECTORY = path.join(__dirname, "define");
 const MAX_FILE_COUNT = 30; // JSONファイルの上限数
 const MAX_FILE_AGE_DAYS = 90; // 何日経過で削除するか。不要なら0にして無効化
 
@@ -68,15 +69,26 @@ app.get("/api/load-json", (req, res) => {
 // ------------ 3) ファイル保存 ------------
 app.post("/api/save-json", (req, res) => {
   // /api/save-json?filename=xxx
-  const filename = req.query.filename;
+  const { filename, key } = req.query;  
+  console.log("受け取った filename:", filename); // ログを追加
+
   if (!filename) {
-    return res
-      .status(400)
-      .send("filename パラメータが必要です。例: ?filename=myShift");
+    return res.status(400).send("filename パラメータが必要です。例: ?filename=myShift");
   }
 
-  const filePath = path.join(OUTPUT_DIR, `${filename}.json`);
-  const data = req.body; // フロントエンドで作成した JSON
+  // key に基づいて保存先を分ける
+  if (key === 'define') {
+    // 'define'の場合は、define.jsonという名前で保存
+    filePath = path.join(DEFINE_JSON_DIRECTORY, "define.json");
+    console.log(`key=${key}`);
+  } else {
+    // 'normal'の場合は通常の名前で保存
+    filePath = path.join(OUTPUT_DIR, `${filename}.json`);
+    console.log(`key=${key}`);
+
+  }
+
+  const data = req.body;
 
   fs.writeFile(filePath, JSON.stringify(data, null, 2), (err) => {
     if (err) {
