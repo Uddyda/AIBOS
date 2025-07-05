@@ -162,9 +162,11 @@ function App() {
       alert("ファイル名を入力してください");
       return;
     }
+
+
     try {
       const res = await fetch(
-        `http://localhost:3001/api/save-json?filename=${saveFilename}`,
+        `http://localhost:3001/api/save-json?filename=${saveFilename}&key=normal`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -364,6 +366,7 @@ function App() {
   // ⑪ シフト作成実行機能
   // =========================
   const handleCreateShiftFile = async () => {
+
     if (!fileForShift) {
       alert("コピー元のファイルを選択してください");
       return;
@@ -381,7 +384,7 @@ function App() {
 
       // 2) define.json という名前で保存 (コピー)
       const saveRes = await fetch(
-        `http://localhost:3001/api/save-json?filename=define`, // define.json
+        `http://localhost:3001/api/save-json?filename=define&key=define`, // define.json
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -402,6 +405,7 @@ function App() {
       console.error(err);
       alert("シフト作成中にエラーが発生しました。");
     }
+
   };
 
   // =========================

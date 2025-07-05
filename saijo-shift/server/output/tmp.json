@@ -1,5 +1,5 @@
 {
-  "year": 2023,
+  "year": 2025,
   "roles": {
     "統括": {
       "type": "employee",
@@ -32,10 +32,6 @@
     "パート短": {
       "type": "part_timer",
       "count": 4
-    },
-    "狙撃手": {
-      "type": "part_timer",
-      "count": 1
     }
   },
   "daily_requirements": {
@@ -140,9 +136,7 @@
       "primary": [
         "霊柩運送員"
       ],
-      "secondary": [
-        "狙撃手"
-      ],
+      "secondary": [],
       "third": []
     },
     "清掃": {
