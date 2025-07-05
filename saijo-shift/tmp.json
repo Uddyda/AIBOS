@@ -1,11 +1,14 @@
 {
-  "year": 2025,
+  "meta": {
+    "generated": "2025-05-31T05:28:16.839003",
+    "note": "temporary scaffold JSON created from Excel screenshots; fill in 'days_in_month' and 'friend_days' per month later."
+  },
   "roles": {
     "統括": {
       "type": "employee",
       "count": 1
     },
-    "副統括": {
+    "副": {
       "type": "employee",
       "count": 1
     },
@@ -35,49 +38,49 @@
     }
   },
   "daily_requirements": {
-    "責任者": {
+    "責": {
       "normal_min": 1,
       "normal_max": 1,
       "friend_min": 1,
       "friend_max": 1
     },
-    "事務": {
+    "事": {
       "normal_min": 1,
       "normal_max": 2,
       "friend_min": 1,
       "friend_max": 2
     },
-    "囲炉裏": {
+    "裏": {
       "normal_min": 1,
       "normal_max": 1,
       "friend_min": 1,
       "friend_max": 1
     },
-    "人火葬": {
+    "人": {
       "normal_min": 6,
       "normal_max": 7,
       "friend_min": 5,
       "friend_max": 5
     },
-    "動物火葬": {
+    "動": {
       "normal_min": 1,
       "normal_max": 2,
       "friend_min": 1,
       "friend_max": 2
     },
-    "運送": {
+    "運": {
       "normal_min": 2,
       "normal_max": 2,
       "friend_min": 2,
       "friend_max": 2
     },
-    "清掃": {
+    "清": {
       "normal_min": 2,
       "normal_max": 2,
       "friend_min": 2,
       "friend_max": 2
     },
-    "売店": {
+    "売": {
       "normal_min": 2,
       "normal_max": 2,
       "friend_min": 2,
@@ -85,74 +88,39 @@
     }
   },
   "role_capability": {
-    "責任者": {
-      "primary": [
-        "統括"
-      ],
-      "secondary": [
-        "副統括"
-      ],
-      "third": []
-    },
-    "事務": {
-      "primary": [
-        "事務員"
-      ],
-      "secondary": [
-        "副統括"
-      ],
-      "third": []
-    },
-    "囲炉裏": {
-      "primary": [
-        "火葬業務統括"
-      ],
-      "secondary": [
-        "火葬業務副統括"
-      ],
-      "third": []
-    },
-    "人火葬": {
-      "primary": [
-        "火葬員"
-      ],
-      "secondary": [
-        "パート長",
-        "パート短"
-      ],
-      "third": []
-    },
-    "動物火葬": {
-      "primary": [
-        "火葬員"
-      ],
-      "secondary": [
-        "パート長",
-        "パート短"
-      ],
-      "third": []
-    },
-    "運送": {
-      "primary": [
-        "霊柩運送員"
-      ],
-      "secondary": [],
-      "third": []
-    },
-    "清掃": {
-      "primary": [
-        "清掃員"
-      ],
-      "secondary": [],
-      "third": []
-    },
-    "売店": {
-      "primary": [
-        "売店従業員"
-      ],
-      "secondary": [],
-      "third": []
-    }
+    "責": [
+      "統括",
+      "副"
+    ],
+    "事": [
+      "事務員",
+      "副"
+    ],
+    "裏": [
+      "火葬業務統括",
+      "火葬業務副統括"
+    ],
+    "人": [
+      "火葬員",
+      "パート長",
+      "パート短"
+    ],
+    "動": [
+      "火葬員",
+      "パート長",
+      "パート短"
+    ],
+    "運": [
+      "霊柩運送員",
+      "火葬員",
+      "事務員"
+    ],
+    "清": [
+      "清掃員"
+    ],
+    "売": [
+      "売店従業員"
+    ]
   },
   "work_constraints": {
     "employee": {

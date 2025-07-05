@@ -5,7 +5,8 @@ import os
 current_path = os.getcwd()
 print(current_path)
 # 旧JSONファイル (あなたの既存の入力用)
-JSON_BEFORE = "../server/output/define.json"
+#JSON_BEFORE = "../server/output/define.json"
+JSON_BEFORE = "../suidou.json"
 # 新JSONファイル (変換後の出力先)
 JSON_AFTER = "./new.json"
 # 六曜情報を含むJSONファイル
