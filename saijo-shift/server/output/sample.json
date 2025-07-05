@@ -1,5 +1,5 @@
 {
-  "year": 2023,
+  "year": 2025,
   "roles": {
     "統括": {
       "type": "employee",
@@ -33,8 +33,16 @@
       "type": "part_timer",
       "count": 4
     },
-    "狙撃手": {
-      "type": "part_timer",
+    "事務員": {
+      "type": "employee",
+      "count": 2
+    },
+    "火葬統括": {
+      "type": "employee",
+      "count": 1
+    },
+    "火葬副統括": {
+      "type": "employee",
       "count": 1
     }
   },
@@ -90,42 +98,70 @@
   },
   "role_capability": {
     "責任者": {
-      "primary": ["統括"],
-      "secondary": ["副統括"],
+      "primary": [
+        "統括"
+      ],
+      "secondary": [
+        "副統括"
+      ],
       "third": []
     },
     "事務": {
-      "primary": ["事務員"],
-      "secondary": ["副統括"],
+      "primary": [
+        "事務員"
+      ],
+      "secondary": [
+        "副統括"
+      ],
       "third": []
     },
     "囲炉裏": {
-      "primary": ["火葬業務統括"],
-      "secondary": ["火葬業務副統括"],
+      "primary": [
+        "火葬統括"
+      ],
+      "secondary": [
+        "火葬副統括"
+      ],
       "third": []
     },
     "人火葬": {
-      "primary": ["火葬員"],
-      "secondary": ["パート長", "パート短"],
+      "primary": [
+        "火葬員"
+      ],
+      "secondary": [
+        "パート長",
+        "パート短"
+      ],
       "third": []
     },
     "動物火葬": {
-      "primary": ["火葬員"],
-      "secondary": ["パート長", "パート短"],
+      "primary": [
+        "火葬員"
+      ],
+      "secondary": [
+        "パート長",
+        "パート短"
+      ],
       "third": []
     },
     "運送": {
-      "primary": ["霊柩運送員"],
-      "secondary": ["狙撃手"],
+      "primary": [
+        "霊柩運送員"
+      ],
+      "secondary": [],
       "third": []
     },
     "清掃": {
-      "primary": ["清掃員"],
+      "primary": [
+        "清掃員"
+      ],
       "secondary": [],
       "third": []
     },
     "売店": {
-      "primary": ["売店従業員"],
+      "primary": [
+        "売店従業員"
+      ],
       "secondary": [],
       "third": []
     }
