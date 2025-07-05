@@ -164,7 +164,7 @@ function App() {
     }
     try {
       const res = await fetch(
-        `http://localhost:3001/api/save-json?filename=${saveFilename}`,
+        `http://localhost:3001/api/save-json?filename=${saveFilename}&key=normal`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -381,7 +381,7 @@ function App() {
 
       // 2) define.json という名前で保存 (コピー)
       const saveRes = await fetch(
-        `http://localhost:3001/api/save-json?filename=define`, // define.json
+        `http://localhost:3001/api/save-json?filename=define&key=define`, // define.json
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
