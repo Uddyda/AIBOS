@@ -2,7 +2,22 @@ import json
 import pandas as pd
 from ortools.sat.python import cp_model
 
-json_path = "./config.json"
+json_path = "./new.json"
+
+month_map = {
+    "January": 1,
+    "February": 2,
+    "March": 3,
+    "April": 4,
+    "May": 5,
+    "June": 6,
+    "July": 7,
+    "August": 8,
+    "September": 9,
+    "October": 10,
+    "November": 11,
+    "December": 12
+}
 
 def load_config(path):
     with open(path, "r", encoding="utf-8") as f:
@@ -18,13 +33,13 @@ def create_variables(model, staff_list, days_in_month, work_types):
                 x[s][d][w] = model.NewBoolVar(f"x_{s}_{d}_{w}")
     return x
 
-def add_priority_constraints(model, x, config, staff_list, days_in_month):
+def add_priority_constraints(model, x, config, staff_list, days_in_month, friend_days):
     """
     priority_assignmentsの各業務(w)に対し、
     primary/secondary/thirdの三段階で人数を満たす
     Minimize用に secondary_list, third_list を収集
     """
-    friend_days = set(config["friend_days"])
+    friend_days = set(friend_days)
     daily_req   = config["daily_requirements"]
     priority_map= config["priority_assignments"]
 
@@ -40,23 +55,12 @@ def add_priority_constraints(model, x, config, staff_list, days_in_month):
         for d in range(days_in_month):
             day_num = d + 1
             is_friend = (day_num in friend_days)
-
-            # 必要人数 min_req ~ max_req
-            if "normal_min" in daily_req[w] and "normal_max" in daily_req[w]:
-                if is_friend:
-                    min_req = daily_req[w].get("friend_min", daily_req[w]["normal_min"])
-                    max_req = daily_req[w].get("friend_max", daily_req[w]["normal_max"])
-                else:
-                    min_req = daily_req[w]["normal_min"]
-                    max_req = daily_req[w]["normal_max"]
+            if is_friend:
+                min_req = daily_req[w]["friend_min"]
+                max_req = daily_req[w]["friend_max"]
             else:
-                # single value
-                normal_val = daily_req[w].get("normal", 0)
-                friend_val = daily_req[w].get("friend", normal_val)
-                val = friend_val if is_friend else normal_val
-                min_req = val
-                max_req = val
-
+                min_req = daily_req[w]["normal_min"]
+                max_req = daily_req[w]["normal_max"]
             sum_primary = sum(x[s][d][w] for s in primary_staff if s in staff_list)
             secondary_list = [x[s][d][w] for s in secondary_staff if s in staff_list]
             third_list_    = [x[s][d][w] for s in third_staff if s in staff_list]
@@ -78,12 +82,12 @@ def add_priority_constraints(model, x, config, staff_list, days_in_month):
 
     return all_secondary_vars, all_third_vars
 
-def add_daily_constraints_for_nonpriority(model, x, config, staff_list, days_in_month):
+def add_daily_constraints_for_nonpriority(model, x, config, staff_list, days_in_month, friend_days):
     """
     priority_assignments に定義していない業務があれば、こちらで min/maxを処理
     (もし全業務をpriority_assignmentsに書くなら不要)
     """
-    friend_days = set(config["friend_days"])
+    friend_days = set(friend_days)
     daily_req   = config["daily_requirements"]
     priority_map= config["priority_assignments"]
     work_types  = list(daily_req.keys())
@@ -119,54 +123,40 @@ def add_one_person_one_job_per_day(model, x, staff_list, days_in_month, work_typ
             model.Add(sum(x[s][d][w] for w in work_types) <= 1)
 
 def add_rest_constraints(model, x, config, staff_positions, staff_list, days_in_month, work_types):
-    # employee, part_timer, dummy
-    wcon_emp = config["work_constraints"]["employee"]
-    wcon_pt  = config["work_constraints"]["part_timer"]
-
-    required_days_off_7 = wcon_emp["days_off_per_7days"]
-    max_work_in_7 = 7 - required_days_off_7
-    max_consec_emp = wcon_emp["max_consecutive_days"]
-    min_month_emp  = wcon_emp["min_monthly_workdays"]
-    max_consec_pt  = wcon_pt["max_consecutive_days"]
-
     for s in staff_list:
         pos = staff_positions[s]
-        if pos == "employee":
-            # 7日中 (required_days_off_7)休み => max_work_in_7日勤務
-            for start_day in range(days_in_month - 6):
-                model.Add(
-                    sum(x[s][d][w] for d in range(start_day, start_day+7) for w in work_types)
-                    <= max_work_in_7
-                )
-            # 連続勤務
-            if max_consec_emp < days_in_month:
-                for d in range(days_in_month - max_consec_emp):
-                    model.Add(
-                        sum(x[s][dd][w] for dd in range(d, d+max_consec_emp+1) for w in work_types)
-                        <= max_consec_emp
-                    )
-            # 月最低勤務
-            if min_month_emp > 0:
-                model.Add(
-                    sum(x[s][d][w] for d in range(days_in_month) for w in work_types)
-                    >= min_month_emp
-                )
+        wcon = config["work_constraints"][pos]
+        required_days_off_7 = wcon["days_off_per_7days"]
+        max_work_in_7 = 7 - required_days_off_7
+        max_consec = wcon["max_consecutive_days"]
+        min_month  = wcon["min_monthly_workdays"]
 
-        elif pos == "part_timer":
-            for d in range(days_in_month - max_consec_pt):
+        # 7日中 (required_days_off_7)休み => max_work_in_7日勤務
+        for start_day in range(days_in_month - 6):
+            model.Add(
+                sum(x[s][d][w] for d in range(start_day, start_day+7) for w in work_types)
+                <= max_work_in_7
+            )
+        # 連続勤務
+        if max_consec < days_in_month:
+            for d in range(days_in_month - max_consec):
                 model.Add(
-                    sum(x[s][dd][w] for dd in range(d, d+max_consec_pt+1) for w in work_types)
-                    <= max_consec_pt
+                    sum(x[s][dd][w] for dd in range(d, d+max_consec+1) for w in work_types)
+                    <= max_consec
                 )
-        elif pos == "dummy":
-            # ダミーは制約なし => 何もしない
-            pass
+        # 月最低勤務
+        if min_month > 0:
+            model.Add(
+                sum(x[s][d][w] for d in range(days_in_month) for w in work_types)
+                >= min_month
+            )
 
-def solve_with_or_tools(config):
-    days_in_month = config["days_in_month"]
-    staff_positions = dict(config["positions"])
-
+def solve_with_or_tools(config, days_in_month, friend_days):
+    # friend day
+    friend_days = set(friend_days)
+    
     # staff_list
+    staff_positions = dict(config["positions"])
     staff_list = list(staff_positions.keys())
     work_types = list(config["daily_requirements"].keys())
 
@@ -187,10 +177,10 @@ def solve_with_or_tools(config):
 
 
     # primary+secondary+third constraints
-    all_secondary_vars, all_third_vars = add_priority_constraints(model, x, config, staff_list, days_in_month)
+    all_secondary_vars, all_third_vars = add_priority_constraints(model, x, config, staff_list, days_in_month, friend_days)
 
     # non-priority業務 (もしもpriority_assignments にない業務があるなら)
-    add_daily_constraints_for_nonpriority(model, x, config, staff_list, days_in_month)
+    add_daily_constraints_for_nonpriority(model, x, config, staff_list, days_in_month, friend_days)
 
     # 1日1人1業務
     add_one_person_one_job_per_day(model, x, staff_list, days_in_month, work_types)
@@ -216,12 +206,17 @@ def solve_with_or_tools(config):
             assigned = ""
             for w in work_types:
                 if solver.Value(x[s][d][w]) == 1:
-                    assigned = w
+                    assigned = w[0]
                     break
             solution[s].append(assigned)
     return status, solution, staff_list, staff_positions, work_types
 
-def summarize_solution(solution, staff_positions, staff_list, days_in_month, work_types, config):
+def summarize_solution(solution, staff_positions, staff_list, days_in_month, work_types, month_key, config):
+    year = config["year"]               # 2025のような整数想定
+    month_number = month_map[month_key] # 4, 5, 6, etc.
+    # ファイル名用: 下2桁の年 + 月番号のゼロ埋め2桁 => "2503"
+    csv_suffix = f"{str(year)[2:]}{month_number:02d}"
+
     staff_days = {}
     for s in staff_list:
         staff_days[s] = sum(1 for d in range(days_in_month) if solution[s][d] != "")
@@ -267,53 +262,85 @@ def summarize_solution(solution, staff_positions, staff_list, days_in_month, wor
     print("\n=== 3) シフト表(従業員×日) ===")
     print(df_shift)
     # ▼ CSVファイル出力
-    df_shift.to_csv("shift_result.csv", encoding="utf-8-sig")
-    df_staff_days.to_csv("staff_workdays.csv", encoding="utf-8-sig")
-    df_day_summary.to_csv("day_summary.csv", encoding="utf-8-sig")
+    df_shift.to_csv(f"./shifts/shift_result{csv_suffix}.csv", encoding="utf-8-sig")
+    df_staff_days.to_csv(f"./summary/staff_workdays{csv_suffix}.csv", encoding="utf-8-sig")
+    df_day_summary.to_csv(f"./work_days/day_summary{csv_suffix}.csv", encoding="utf-8-sig")
 
     return df_staff_days, df_day_summary, df_shift
 
 def main():
-    config = load_config(f"{json_path}")  # あなたのJSONパス
-    status, solution, staff_list, staff_positions, work_types = solve_with_or_tools(config)
+    
+    # 4月(April)から翌年3月(March)までを回す例：
+    months_to_process = [
+        "April", "May", "June", "July", "August", "September",
+        "October", "November", "December", "January", "February", "March"
+    ]
 
-    if solution is None:
-        print("解が見つかりませんでした。")
-        return
+    n=1
+    for month_key in months_to_process:
+        config = load_config(json_path)
+        days_in_month = config["calendar"][month_key]["days_in_month"]
+        friend_days   = config["calendar"][month_key]["friend_days"]
+        print(f"=== {month_key} (days_in_month={days_in_month}) ===")
 
-    # 解が見つかった。ダミーの割当をチェック
-    # ダミーかどうかは positions で "dummy" と定義している想定
-    dummy_used = False
-    for s in staff_list:
-        if staff_positions[s] == "dummy":
-            # このスタッフが1日でも勤務していれば dummy_used=True
-            for d in range(config["days_in_month"]):
-                if solution[s][d] != "":
-                    dummy_used = True
-                    break
+        # 月単位のシフトを生成
+        status, solution, staff_list, staff_positions, work_types = solve_with_or_tools(
+            config,
+            days_in_month,
+            friend_days
+        )
+
+        if solution is None:
+            print("解が見つかりませんでした。")
+            continue
+        else:
+            # ここでまとめ出力やCSV書き出し
+            summarize_solution(
+                solution,
+                staff_positions,
+                staff_list,
+                days_in_month,
+                work_types,
+                month_key,
+                config
+            )
+        
+            # 解が見つかった。ダミーの割当をチェック
+        # ダミーかどうかは positions で "dummy" と定義している想定
+        dummy_used = False
+        for s in staff_list:
+            if staff_positions[s] == "dummy":
+                # このスタッフが1日でも勤務していれば dummy_used=True
+                for d in range(days_in_month):
+                    if solution[s][d] != "":
+                        dummy_used = True
+                        break
+            if dummy_used:
+                break
+
         if dummy_used:
-            break
+            print("=== ダミーが割り当てられました。以下のシフトに警告があります ===")
+        else:
+            print("=== シフトが見つかりました (ダミーなし) ===")
 
-    if dummy_used:
-        print("=== ダミーが割り当てられました。以下のシフトに警告があります ===")
-    else:
-        print("=== シフトが見つかりました (ダミーなし) ===")
+        # つづいて集計を表示
+        #summarize_solution(solution, staff_positions, staff_list, days_in_month, work_types, config)
 
-    # つづいて集計を表示
-    summarize_solution(solution, staff_positions, staff_list,
-                       config["days_in_month"], work_types, config)
+        # もし具体的にダミーが入った日付を列挙したいなら
+        if dummy_used:
+            shortage_list = []
+            for d in range(days_in_month):
+                for s in staff_list:
+                    if staff_positions[s] == "dummy" and solution[s][d] != "":
+                        shortage_list.append((d+1, s, solution[s][d]))
+            if shortage_list:
+                print("\n--- 警告: ダミー勤務箇所 ---")
+                for (day_num, dummy_name, job) in shortage_list:
+                    print(f"  Day {day_num}, Job '{job}' → {dummy_name}")
 
-    # もし具体的にダミーが入った日付を列挙したいなら
-    if dummy_used:
-        shortage_list = []
-        for d in range(config["days_in_month"]):
-            for s in staff_list:
-                if staff_positions[s] == "dummy" and solution[s][d] != "":
-                    shortage_list.append((d+1, s, solution[s][d]))
-        if shortage_list:
-            print("\n--- 警告: ダミー勤務箇所 ---")
-            for (day_num, dummy_name, job) in shortage_list:
-                print(f"  Day {day_num}, Job '{job}' → {dummy_name}")
+        n=n+1
+
+
 
 if __name__ == "__main__":
     main()
