@@ -5,7 +5,11 @@ import type {
   DailyRequirement,
   WorkConstraints,
   WorkConstraint,
-} from "./types/shift"; // 事前に定義した型
+} from "../types/shift";
+import RoleCapabilityDnD from "../components/RoleCapabilityDnD";
+import DailyRequirementsTable from "../components/DailyRequirementsTable";
+import RoleListDnD from "../components/RoleListDnD";
+import WorkConstraintsTable from "../components/WorkConstraintsTable";
 
 function App() {
   // =========================
@@ -75,7 +79,6 @@ function App() {
         third: [],
       },
     },
-
     work_constraints: {
       employee: {
         weekly_days_off: 2,
@@ -99,18 +102,13 @@ function App() {
   // ② ステート一覧
   // =========================
   const [fileList, setFileList] = useState<string[]>([]);
-  const [selectedFile, setSelectedFile] = useState<string>(""); // 選択中のファイル名(読込用)
-  const [saveFilename, setSaveFilename] = useState<string>(""); // 新規保存用
-  const [showShiftCreate, setShowShiftCreate] = useState(false); // モーダル or ブロック表示切り替え用
-  const [fileForShift, setFileForShift] = useState<string>(""); // シフト作成に選択するファイル名
+  const [selectedFile, setSelectedFile] = useState<string>("");
+  const [saveFilename, setSaveFilename] = useState<string>("");
+  const [showShiftCreate, setShowShiftCreate] = useState(false);
+  const [fileForShift, setFileForShift] = useState<string>("");
+  const [roleOrder, setRoleOrder] = useState<string[]>(Object.keys(data.roles));
 
-  // =========================
-  // ③ 従業員選択用リスト
-  // =========================
-
-  // === (A) どの RoleCapability に追加するかを選ぶために capKey を state で保持してもOK。
-  //     ここでは「各capKeyブロック内で追加ボタンを押す→select で選ぶUI」を作る例にします。
-
+  
   // =========================
   // ④ 起動時にファイル一覧を取得
   // =========================
@@ -147,6 +145,7 @@ function App() {
       }
       const loadedData = await res.json();
       setData(loadedData);
+      setRoleOrder(Object.keys(loadedData.roles)); 
       alert(`${selectedFile}.json を読み込みました`);
     } catch (err) {
       console.error("読み込みエラー:", err);
@@ -178,7 +177,7 @@ function App() {
           "http://localhost:3001/api/list-files"
         ).then((r) => r.json());
         setFileList(updatedList);
-        setSaveFilename(""); // 入力欄リセット
+        setSaveFilename("");
       } else {
         alert("保存に失敗しました。");
       }
@@ -191,6 +190,7 @@ function App() {
   // =========================
   // ⑦ 役職の編集ハンドラ
   // =========================
+  // 役職の編集ハンドラ
   const handleRoleChange = (
     roleKey: string,
     field: "type" | "count",
@@ -208,31 +208,16 @@ function App() {
     }));
   };
 
-  const handleAddRole = () => {
-    // 1) 役職名を尋ねる
-    const newRoleName = window.prompt("追加する役職名を入力してください:");
-    if (!newRoleName) return;
-
-    // 2) typeを尋ねる
-    const typeInput = window.prompt(
-      "社員なら employee、パートなら part_timer と入力してください:",
-      "employee"
-    );
-    if (!typeInput) return;
-    // 入力が "part_timer" かどうかで分岐 (それ以外は社員扱い)
-    const newRoleType = typeInput === "part_timer" ? "part_timer" : "employee";
-
-    setData((prev) => ({
+  // 役職追加ハンドラ（RoleListTable用にprops化）
+  const handleAddRole = (roleKey: string, type: "employee" | "part_timer") => {
+    setData(prev => ({
       ...prev,
       roles: {
         ...prev.roles,
-        // 新しく追加
-        [newRoleName]: {
-          type: newRoleType,
-          count: 1,
-        },
-      },
+        [roleKey]: { type, count: 1 }
+      }
     }));
+    setRoleOrder(prev => prev.includes(roleKey) ? prev : [...prev, roleKey]);
   };
 
   // =========================
@@ -241,7 +226,7 @@ function App() {
   const handleDailyRequirementChange = (
     reqKey: string,
     field: keyof DailyRequirement,
-    value: string
+    value: number
   ) => {
     setData((prev) => ({
       ...prev,
@@ -249,35 +234,48 @@ function App() {
         ...prev.daily_requirements,
         [reqKey]: {
           ...prev.daily_requirements[reqKey],
-          [field]: Number(value),
+          [field]: value,
         },
       },
     }));
   };
 
   // =========================
-  // ⑨ Role Capability の編集ハンドラ
+  // ⑨ Role Capability の編集ハンドラ (DnD用)
   // =========================
+  const handleRoleCapabilityDnDUpdate = (
+    capKey: string,
+    level: "primary" | "secondary",
+    newArr: string[]
+  ) => {
+    setData((prev) => ({
+      ...prev,
+      role_capability: {
+        ...prev.role_capability,
+        [capKey]: {
+          ...prev.role_capability[capKey],
+          [level]: newArr,
+        },
+      },
+    }));
+  };
 
-  // (A) テキスト変更
-  const handleRoleCapabilityChange = (
+  const handleRoleCapabilityEdit = (
     capKey: string,
     level: "primary" | "secondary",
     index: number,
     value: string
   ) => {
     setData((prev) => {
-      const capObj = prev.role_capability[capKey];
-      const oldArr = capObj[level];
-      const newArr = [...oldArr];
+      const arr = prev.role_capability[capKey][level];
+      const newArr = [...arr];
       newArr[index] = value;
-
       return {
         ...prev,
         role_capability: {
           ...prev.role_capability,
           [capKey]: {
-            ...capObj,
+            ...prev.role_capability[capKey],
             [level]: newArr,
           },
         },
@@ -285,24 +283,21 @@ function App() {
     });
   };
 
-  // (B) 要素削除
-  const handleDeleteCapability = (
+  const handleRoleCapabilityDelete = (
     capKey: string,
     level: "primary" | "secondary",
     index: number
   ) => {
     setData((prev) => {
-      const capObj = prev.role_capability[capKey];
-      const oldArr = capObj[level];
-      const newArr = [...oldArr];
+      const arr = prev.role_capability[capKey][level];
+      const newArr = [...arr];
       newArr.splice(index, 1);
-
       return {
         ...prev,
         role_capability: {
           ...prev.role_capability,
           [capKey]: {
-            ...capObj,
+            ...prev.role_capability[capKey],
             [level]: newArr,
           },
         },
@@ -310,30 +305,24 @@ function App() {
     });
   };
 
-  // (C) プルダウン追加
-  const handleSelectEmployee = (
-    e: ChangeEvent<HTMLSelectElement>,
+  const handleRoleCapabilityAdd = (
     capKey: string,
-    level: "primary" | "secondary"
+    level: "primary" | "secondary",
+    value: string
   ) => {
-    const selectedEmp = e.target.value;
-    if (!selectedEmp) return;
-
-    const curArr = data.role_capability[capKey][level];
-    if (curArr.includes(selectedEmp)) {
-      alert("既に追加されています。");
-      return;
-    }
-
     setData((prev) => {
-      const capObj = prev.role_capability[capKey];
+      const arr = prev.role_capability[capKey][level];
+      if (arr.includes(value)) {
+        alert("既に追加されています。");
+        return prev;
+      }
       return {
         ...prev,
         role_capability: {
           ...prev.role_capability,
           [capKey]: {
-            ...capObj,
-            [level]: [...capObj[level], selectedEmp],
+            ...prev.role_capability[capKey],
+            [level]: [...arr, value],
           },
         },
       };
@@ -344,17 +333,17 @@ function App() {
   // ⑩ Work Constraints の編集
   // =========================
   const handleWorkConstraintsChange = (
-    typeKey: keyof WorkConstraints,
+    typeKey: keyof WorkConstraints, // ← ここをstringからkeyof WorkConstraintsに
     field: keyof WorkConstraint,
-    value: string
+    value: number
   ) => {
-    setData((prev) => ({
+    setData(prev => ({
       ...prev,
       work_constraints: {
         ...prev.work_constraints,
         [typeKey]: {
           ...prev.work_constraints[typeKey],
-          [field]: Number(value),
+          [field]: value,
         },
       },
     }));
@@ -369,7 +358,6 @@ function App() {
       return;
     }
     try {
-      // 1) 選んだファイルの内容を読み込む
       const readRes = await fetch(
         `http://localhost:3001/api/load-json?filename=${fileForShift}`
       );
@@ -378,10 +366,8 @@ function App() {
         return;
       }
       const fileData = await readRes.json();
-
-      // 2) define.json という名前で保存 (コピー)
       const saveRes = await fetch(
-        `http://localhost:3001/api/save-json?filename=define&key=define`, // define.json
+        `http://localhost:3001/api/save-json?filename=define&key=define`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -392,10 +378,7 @@ function App() {
         alert("define.json として保存に失敗しました。");
         return;
       }
-
       alert(`${fileForShift}.json をコピーして define.json を作成しました！`);
-
-      // 表示を閉じる、選択をリセット
       setFileForShift("");
       setShowShiftCreate(false);
     } catch (err) {
@@ -411,7 +394,7 @@ function App() {
     <div style={{ margin: "20px" }}>
       <h1>シフトツール (TypeScript版)</h1>
 
-      {/* 0) ▼▼▼ ここに「シフト作成」ボタンを追加 ▼▼▼ */}
+      {/* シフト作成モーダル */}
       <button
         onClick={() => setShowShiftCreate(true)}
         style={{ marginBottom: 20 }}
@@ -420,23 +403,21 @@ function App() {
       </button>
       {showShiftCreate && (
         <div
-          // ▼▼▼ オーバーレイ全体 ▼▼▼
           style={{
             position: "fixed",
             top: 0,
             left: 0,
             width: "100vw",
             height: "100vh",
-            backgroundColor: "rgba(0, 0, 0, 0.5)", // 背景を薄暗く
+            backgroundColor: "rgba(0, 0, 0, 0.5)",
             display: "flex",
             justifyContent: "center",
             alignItems: "center",
-            zIndex: 9999, // 最前面に表示
+            zIndex: 9999,
           }}
-          onClick={() => setShowShiftCreate(false)} // オーバーレイ(背景)クリックで閉じる
+          onClick={() => setShowShiftCreate(false)}
         >
           <div
-            // ▼▼▼ ポップアップ(モーダル)本体 ▼▼▼
             style={{
               backgroundColor: "#fff",
               padding: 20,
@@ -445,7 +426,6 @@ function App() {
               position: "relative",
             }}
             onClick={(e) => e.stopPropagation()}
-            // モーダル自体のクリックが親(div)に伝播しないように
           >
             <h2>シフト作成</h2>
             <p>使用するファイルを選択してください</p>
@@ -476,8 +456,7 @@ function App() {
         style={{ border: "1px solid #ccc", padding: 10, marginBottom: 20 }}
       >
         <h2>ファイル操作</h2>
-
-        {/* (A) ファイル保存 (新規ファイル名) */}
+        {/* (A) ファイル保存 */}
         <div style={{ marginBottom: 10 }}>
           <label>保存ファイル名: </label>
           <input
@@ -490,8 +469,7 @@ function App() {
             保存
           </button>
         </div>
-
-        {/* (B) ファイル一覧から読み込み */}
+        {/* (B) ファイル読み込み */}
         <div>
           <label>読み込むファイル: </label>
           <select
@@ -511,7 +489,9 @@ function App() {
         </div>
       </section>
 
-      {/* 年の設定*/}
+
+
+      {/* 年の設定 */}
       <section style={{ marginBottom: 20 }}>
         <h2>年度指定</h2>
         <label>年度(西暦4桁): </label>
@@ -527,257 +507,60 @@ function App() {
         />
       </section>
 
-      {/* 2) Roles セクション */}
-      <section style={{ marginBottom: 20 }}>
-        <h2>役職一覧</h2>
-        <button onClick={handleAddRole}>役職追加</button>
-        <table border={1} cellPadding={5} style={{ marginTop: 10 }}>
-          <thead>
-            <tr>
-              <th>役職名</th>
-              <th>type</th>
-              <th>count</th>
-            </tr>
-          </thead>
-          <tbody>
-            {Object.entries(data.roles).map(([roleKey, roleValue]) => (
-              <tr key={roleKey}>
-                <td>{roleKey}</td>
-                <td>
-                  <select
-                    value={roleValue.type}
-                    onChange={(e) =>
-                      handleRoleChange(roleKey, "type", e.target.value)
-                    }
-                  >
-                    <option value="employee">employee</option>
-                    <option value="part_timer">part_timer</option>
-                  </select>
-                </td>
-                <td>
-                  <input
-                    type="number"
-                    value={roleValue.count}
-                    onChange={(e) =>
-                      handleRoleChange(roleKey, "count", Number(e.target.value))
-                    }
-                  />
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </section>
+      <div style={{ display: "flex", gap: 40, alignItems: "flex-start" }}>
+        {/* 2) Roles セクション */}
+        {/* 役職一覧 */}
+        <div style={{ flex: 1 }}>
+          <h2>役職一覧</h2>
+          <RoleListDnD
+            roles={data.roles}
+            roleOrder={roleOrder}
+            onRoleOrderChange={setRoleOrder}
+            onChangeRole={handleRoleChange}
+            onAddRole={handleAddRole}
+          />
+        </div>
+        {/* 3) Daily Requirements セクション */}
+        {/* 一日に必要な人数 */}
+        <div style={{ flex: 1 }}>
+          <DailyRequirementsTable
+            dailyRequirements={data.daily_requirements}
+            onChange={handleDailyRequirementChange}
+          />
+        </div>
+      </div>
 
-      {/* 3) Daily Requirements セクション */}
-      <section style={{ marginBottom: 20 }}>
-        <h2>一日に必要な人数</h2>
-        <table border={1} cellPadding={5}>
-          <thead>
-            <tr>
-              <th>キー</th>
-              <th>normal_min</th>
-              <th>normal_max</th>
-              <th>friend_min</th>
-              <th>friend_max</th>
-            </tr>
-          </thead>
-          <tbody>
-            {Object.entries(data.daily_requirements).map(
-              ([reqKey, reqValue]) => (
-                <tr key={reqKey}>
-                  <td>{reqKey}</td>
-                  {(
-                    [
-                      "normal_min",
-                      "normal_max",
-                      "friend_min",
-                      "friend_max",
-                    ] as (keyof DailyRequirement)[]
-                  ).map((field) => (
-                    <td key={field}>
-                      <input
-                        type="number"
-                        value={reqValue[field]}
-                        onChange={(e) =>
-                          handleDailyRequirementChange(
-                            reqKey,
-                            field,
-                            e.target.value
-                          )
-                        }
-                      />
-                    </td>
-                  ))}
-                </tr>
-              )
-            )}
-          </tbody>
-        </table>
-      </section>
-
-      {/* 4) Role Capability セクション */}
+      {/* 4) Role Capability セクション（DnD UI） */}
       <section style={{ marginBottom: 20 }}>
         <h2>割り当て可能な職種</h2>
-        {Object.entries(data.role_capability).map(([capKey, capObj]) => (
           <div
-            key={capKey}
-            style={{ marginBottom: 20, border: "1px solid #ddd", padding: 10 }}
+            style={{
+              display: "grid",
+              gridTemplateColumns: "1fr 1fr", // 2列グリッド
+              gap: 20,                        // カード間のスペース
+              alignItems: "flex-start"
+            }}
           >
-            <h4>{capKey}</h4>
-
-            {/* 横並びレイアウトをするコンテナ */}
-            <div style={{ display: "flex", gap: "40px" }}>
-              {/* Primary 一覧 */}
-              <div>
-                <label>Primary:</label>
-                <ul>
-                  {capObj.primary.map((member, idx) => (
-                    <li key={idx}>
-                      <input
-                        type="text"
-                        value={member}
-                        onChange={(e) =>
-                          handleRoleCapabilityChange(
-                            capKey,
-                            "primary",
-                            idx,
-                            e.target.value
-                          )
-                        }
-                      />
-                      <button
-                        onClick={() =>
-                          handleDeleteCapability(capKey, "primary", idx)
-                        }
-                      >
-                        削除
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-
-                {/*
-                  --- [追加] Primary への追加用セレクト ---
-                  下記のように roles のキーをオプションにして select を作り、
-                  onChange で handleSelectEmployee(e, capKey, "primary") を呼び出します。
-                */}
-                <div style={{ marginTop: 8 }}>
-                  <label>追加: </label>
-                  <select
-                    onChange={(e) => handleSelectEmployee(e, capKey, "primary")}
-                    defaultValue=""
-                  >
-                    <option value="">--役職を選択--</option>
-                    {Object.keys(data.roles).map((roleKey) => (
-                      <option key={roleKey} value={roleKey}>
-                        {roleKey}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              {/* Secondary 一覧 */}
-              <div>
-                <label>Secondary:</label>
-                <ul>
-                  {capObj.secondary.map((member, idx) => (
-                    <li key={idx}>
-                      <input
-                        type="text"
-                        value={member}
-                        onChange={(e) =>
-                          handleRoleCapabilityChange(
-                            capKey,
-                            "secondary",
-                            idx,
-                            e.target.value
-                          )
-                        }
-                      />
-                      <button
-                        onClick={() =>
-                          handleDeleteCapability(capKey, "secondary", idx)
-                        }
-                      >
-                        削除
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-
-                {/*
-                  --- [追加] Secondary への追加用セレクト ---
-                */}
-                <div style={{ marginTop: 8 }}>
-                  <label>追加: </label>
-                  <select
-                    onChange={(e) =>
-                      handleSelectEmployee(e, capKey, "secondary")
-                    }
-                    defaultValue=""
-                  >
-                    <option value="">--役職を選択--</option>
-                    {Object.keys(data.roles).map((roleKey) => (
-                      <option key={roleKey} value={roleKey}>
-                        {roleKey}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-            </div>
-
-            {/* Third 一覧のブロックは削除（非表示） */}
-          </div>
+        {Object.entries(data.role_capability).map(([capKey, capObj]) => (
+          <RoleCapabilityDnD
+            key={capKey}
+            capKey={capKey}
+            capability={capObj}
+            roles={data.roles}
+            onUpdate={(level, arr) => handleRoleCapabilityDnDUpdate(capKey, level, arr)}
+            onEdit={(level, index, value) => handleRoleCapabilityEdit(capKey, level, index, value)}
+            onDelete={(level, index) => handleRoleCapabilityDelete(capKey, level, index)}
+            onAdd={(level, value) => handleRoleCapabilityAdd(capKey, level, value)}
+          />
         ))}
+        </div>
       </section>
 
       {/* 5) Work Constraints セクション */}
-      <section style={{ marginBottom: 20 }}>
-        <h2>就業規則</h2>
-        <table border={1} cellPadding={5}>
-          <thead>
-            <tr>
-              <th>typeKey</th>
-              <th>weekly_days_off</th>
-              <th>max_consecutive_days</th>
-              <th>min_monthly_workdays</th>
-            </tr>
-          </thead>
-          <tbody>
-            {Object.entries(data.work_constraints).map(
-              ([typeKey, constValue]) => (
-                <tr key={typeKey}>
-                  <td>{typeKey}</td>
-                  {(
-                    [
-                      "weekly_days_off",
-                      "max_consecutive_days",
-                      "min_monthly_workdays",
-                    ] as (keyof WorkConstraint)[]
-                  ).map((field) => (
-                    <td key={field}>
-                      <input
-                        type="number"
-                        value={constValue[field]}
-                        onChange={(e) =>
-                          handleWorkConstraintsChange(
-                            typeKey as keyof WorkConstraints,
-                            field,
-                            e.target.value
-                          )
-                        }
-                      />
-                    </td>
-                  ))}
-                </tr>
-              )
-            )}
-          </tbody>
-        </table>
-      </section>
+      <WorkConstraintsTable
+        workConstraints={data.work_constraints}
+        onChange={handleWorkConstraintsChange}
+      />
 
       {/* 6) JSON 出力プレビュー */}
       <section>
