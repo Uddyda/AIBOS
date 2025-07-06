@@ -106,7 +106,8 @@ function App() {
   const [saveFilename, setSaveFilename] = useState<string>("");
   const [showShiftCreate, setShowShiftCreate] = useState(false);
   const [fileForShift, setFileForShift] = useState<string>("");
-  const [roleOrder, setRoleOrder] = useState<string[]>(Object.keys(data.roles));
+  const [requirementOrder, setRequirementOrder] = useState<string[]>(Object.keys(data.daily_requirements));
+  const [rolesOrder, setRolesOrder] = useState<string[]>(Object.keys(data.roles));
 
   
   // =========================
@@ -144,14 +145,30 @@ function App() {
         return;
       }
       const loadedData = await res.json();
+  
       setData(loadedData);
-      setRoleOrder(Object.keys(loadedData.roles)); 
+  
+      // --- 職種一覧の並び順（requirementOrder） ---
+      if (loadedData.requirementOrder) {
+        setRequirementOrder(loadedData.requirementOrder);
+      } else {
+        setRequirementOrder(Object.keys(loadedData.daily_requirements));
+      }
+  
+      // --- 役職一覧の並び順（rolesOrder） ---
+      if (loadedData.rolesOrder) {
+        setRolesOrder(loadedData.rolesOrder);
+      } else {
+        setRolesOrder(Object.keys(loadedData.roles));
+      }
+  
       alert(`${selectedFile}.json を読み込みました`);
     } catch (err) {
       console.error("読み込みエラー:", err);
       alert("読み込みエラーです");
     }
   };
+  
 
   // =========================
   // ⑥ 新規ファイル名を指定して保存
@@ -162,17 +179,38 @@ function App() {
       return;
     }
     try {
+      // 順序通りに新しいオブジェクトを構築
+      const orderedRoles: { [key: string]: { type: string; count: number } } = {};
+      rolesOrder.forEach(key => {
+        if (data.roles[key]) orderedRoles[key] = data.roles[key];
+      });
+      const orderedDailyRequirements: { [key: string]: DailyRequirement } = {};
+      const orderedRoleCapability: { [key: string]: { primary: string[]; secondary: string[]; third?: string[] } } = {};
+      requirementOrder.forEach(key => {
+        if (data.daily_requirements[key]) orderedDailyRequirements[key] = data.daily_requirements[key];
+        if (data.role_capability[key]) orderedRoleCapability[key] = data.role_capability[key];
+      });
+  
+      // JSONとして保存するデータ
+      const dataToSave = {
+        ...data,
+        roles: orderedRoles,
+        daily_requirements: orderedDailyRequirements,
+        role_capability: orderedRoleCapability,
+        rolesOrder,
+        requirementOrder,
+      };
+  
       const res = await fetch(
         `http://localhost:3001/api/save-json?filename=${saveFilename}&key=normal`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(data),
+          body: JSON.stringify(dataToSave), // ←★★ここを修正！★★
         }
       );
       if (res.ok) {
         alert(`${saveFilename}.json として保存しました！`);
-        // 保存後にファイル一覧を再取得
         const updatedList = await fetch(
           "http://localhost:3001/api/list-files"
         ).then((r) => r.json());
@@ -217,7 +255,16 @@ function App() {
         [roleKey]: { type, count: 1 }
       }
     }));
-    setRoleOrder(prev => prev.includes(roleKey) ? prev : [...prev, roleKey]);
+    setRolesOrder(prev => prev.includes(roleKey) ? prev : [...prev, roleKey]);
+  };
+
+  const handleDeleteRole = (roleKey: string) => {
+    setData(prev => {
+      const newRoles = { ...prev.roles };
+      delete newRoles[roleKey];
+      return { ...prev, roles: newRoles };
+    });
+    setRolesOrder(prev => prev.filter(key => key !== roleKey));
   };
 
   // =========================
@@ -239,6 +286,40 @@ function App() {
       },
     }));
   };
+
+  // daily_requirementsに職種を追加
+const handleAddDailyRequirement = (key: string) => {
+  // 既にある場合は追加しない
+  if (data.daily_requirements[key]) return;
+  setData(prev => ({
+    ...prev,
+    daily_requirements: {
+      ...prev.daily_requirements,
+      [key]: { normal_min: 1, normal_max: 1, friend_min: 1, friend_max: 1 }
+    },
+    role_capability: {
+      ...prev.role_capability,
+      [key]: { primary: [], secondary: [], third: [] } // ←初期化
+    }
+  }));
+  setRequirementOrder(prev => [...prev, key]);
+};
+
+// daily_requirementsから職種を削除
+const handleDeleteDailyRequirement = (key: string) => {
+  setData(prev => {
+    const newReqs = { ...prev.daily_requirements };
+    delete newReqs[key];
+    const newRoleCaps = { ...prev.role_capability };
+    delete newRoleCaps[key];
+    return {
+      ...prev,
+      daily_requirements: newReqs,
+      role_capability: newRoleCaps
+    };
+  });
+  setRequirementOrder(prev => prev.filter(k => k !== key));
+};
 
   // =========================
   // ⑨ Role Capability の編集ハンドラ (DnD用)
@@ -309,11 +390,12 @@ function App() {
     capKey: string,
     level: "primary" | "secondary",
     value: string
-  ) => {
+  ): boolean => {
+    let duplicate = false;
     setData((prev) => {
       const arr = prev.role_capability[capKey][level];
       if (arr.includes(value)) {
-        alert("既に追加されています。");
+        duplicate = true;
         return prev;
       }
       return {
@@ -327,6 +409,7 @@ function App() {
         },
       };
     });
+    return duplicate;
   };
 
   // =========================
@@ -514,19 +597,24 @@ function App() {
           <h2>役職一覧</h2>
           <RoleListDnD
             roles={data.roles}
-            roleOrder={roleOrder}
-            onRoleOrderChange={setRoleOrder}
+            order={rolesOrder}
+            onOrderChange={setRolesOrder}
             onChangeRole={handleRoleChange}
             onAddRole={handleAddRole}
+            onDeleteRole={handleDeleteRole}
           />
         </div>
         {/* 3) Daily Requirements セクション */}
-        {/* 一日に必要な人数 */}
+        {/* 職種一覧 */}
         <div style={{ flex: 1 }}>
-          <DailyRequirementsTable
-            dailyRequirements={data.daily_requirements}
-            onChange={handleDailyRequirementChange}
-          />
+        <DailyRequirementsTable
+          dailyRequirements={data.daily_requirements}
+          order={requirementOrder}
+          onOrderChange={setRequirementOrder}
+          onChange={handleDailyRequirementChange}
+          onAdd={handleAddDailyRequirement}
+          onDelete={handleDeleteDailyRequirement}
+        />
         </div>
       </div>
 
@@ -541,18 +629,20 @@ function App() {
               alignItems: "flex-start"
             }}
           >
-        {Object.entries(data.role_capability).map(([capKey, capObj]) => (
+        {requirementOrder.map(capKey => (
+        data.role_capability[capKey] && (
           <RoleCapabilityDnD
             key={capKey}
             capKey={capKey}
-            capability={capObj}
+            capability={data.role_capability[capKey]}
             roles={data.roles}
             onUpdate={(level, arr) => handleRoleCapabilityDnDUpdate(capKey, level, arr)}
             onEdit={(level, index, value) => handleRoleCapabilityEdit(capKey, level, index, value)}
             onDelete={(level, index) => handleRoleCapabilityDelete(capKey, level, index)}
             onAdd={(level, value) => handleRoleCapabilityAdd(capKey, level, value)}
           />
-        ))}
+        )
+      ))}
         </div>
       </section>
 
