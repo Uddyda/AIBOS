@@ -1,0 +1,501 @@
+{
+  "year": 2027,
+  "positions": {
+    "統括A": "employee",
+    "副統括A": "employee",
+    "火葬員A": "employee",
+    "火葬員B": "employee",
+    "火葬員C": "employee",
+    "火葬員D": "employee",
+    "火葬員E": "employee",
+    "火葬員F": "employee",
+    "清掃員A": "employee",
+    "清掃員B": "employee",
+    "清掃員C": "employee",
+    "清掃員D": "employee",
+    "売店従業員A": "employee",
+    "売店従業員B": "employee",
+    "売店従業員C": "employee",
+    "霊柩運送員A": "employee",
+    "霊柩運送員B": "employee",
+    "霊柩運送員C": "employee",
+    "パート長A": "part_timer",
+    "パート長B": "part_timer",
+    "パート長C": "part_timer",
+    "パート長D": "part_timer",
+    "パート短A": "part_timer",
+    "パート短B": "part_timer",
+    "パート短C": "part_timer",
+    "パート短D": "part_timer",
+    "N1": "dummy",
+    "N2": "dummy",
+    "N3": "dummy",
+    "N4": "dummy",
+    "N5": "dummy",
+    "N6": "dummy",
+    "N7": "dummy",
+    "N8": "dummy",
+    "N9": "dummy",
+    "N10": "dummy",
+    "N11": "dummy",
+    "N12": "dummy",
+    "N13": "dummy",
+    "N14": "dummy",
+    "N15": "dummy",
+    "N16": "dummy",
+    "N17": "dummy",
+    "N18": "dummy",
+    "N19": "dummy",
+    "N20": "dummy"
+  },
+  "priority_assignments": {
+    "責任者": {
+      "primary": [
+        "統括A"
+      ],
+      "secondary": [
+        "副統括A"
+      ],
+      "third": [
+        "N1",
+        "N2",
+        "N3",
+        "N4",
+        "N5",
+        "N6",
+        "N7",
+        "N8",
+        "N9",
+        "N10",
+        "N11",
+        "N12",
+        "N13",
+        "N14",
+        "N15",
+        "N16",
+        "N17",
+        "N18",
+        "N19",
+        "N20"
+      ]
+    },
+    "事務": {
+      "primary": [],
+      "secondary": [
+        "副統括A"
+      ],
+      "third": [
+        "N1",
+        "N2",
+        "N3",
+        "N4",
+        "N5",
+        "N6",
+        "N7",
+        "N8",
+        "N9",
+        "N10",
+        "N11",
+        "N12",
+        "N13",
+        "N14",
+        "N15",
+        "N16",
+        "N17",
+        "N18",
+        "N19",
+        "N20"
+      ]
+    },
+    "囲炉裏": {
+      "primary": [],
+      "secondary": [],
+      "third": [
+        "N1",
+        "N2",
+        "N3",
+        "N4",
+        "N5",
+        "N6",
+        "N7",
+        "N8",
+        "N9",
+        "N10",
+        "N11",
+        "N12",
+        "N13",
+        "N14",
+        "N15",
+        "N16",
+        "N17",
+        "N18",
+        "N19",
+        "N20"
+      ]
+    },
+    "人火葬": {
+      "primary": [
+        "火葬員A",
+        "火葬員B",
+        "火葬員C",
+        "火葬員D",
+        "火葬員E",
+        "火葬員F"
+      ],
+      "secondary": [
+        "パート長A",
+        "パート長B",
+        "パート長C",
+        "パート長D",
+        "パート短A",
+        "パート短B",
+        "パート短C",
+        "パート短D"
+      ],
+      "third": [
+        "N1",
+        "N2",
+        "N3",
+        "N4",
+        "N5",
+        "N6",
+        "N7",
+        "N8",
+        "N9",
+        "N10",
+        "N11",
+        "N12",
+        "N13",
+        "N14",
+        "N15",
+        "N16",
+        "N17",
+        "N18",
+        "N19",
+        "N20"
+      ]
+    },
+    "動物火葬": {
+      "primary": [
+        "火葬員A",
+        "火葬員B",
+        "火葬員C",
+        "火葬員D",
+        "火葬員E",
+        "火葬員F"
+      ],
+      "secondary": [
+        "パート長A",
+        "パート長B",
+        "パート長C",
+        "パート長D",
+        "パート短A",
+        "パート短B",
+        "パート短C",
+        "パート短D"
+      ],
+      "third": [
+        "N1",
+        "N2",
+        "N3",
+        "N4",
+        "N5",
+        "N6",
+        "N7",
+        "N8",
+        "N9",
+        "N10",
+        "N11",
+        "N12",
+        "N13",
+        "N14",
+        "N15",
+        "N16",
+        "N17",
+        "N18",
+        "N19",
+        "N20"
+      ]
+    },
+    "運送": {
+      "primary": [
+        "霊柩運送員A",
+        "霊柩運送員B",
+        "霊柩運送員C"
+      ],
+      "secondary": [],
+      "third": [
+        "N1",
+        "N2",
+        "N3",
+        "N4",
+        "N5",
+        "N6",
+        "N7",
+        "N8",
+        "N9",
+        "N10",
+        "N11",
+        "N12",
+        "N13",
+        "N14",
+        "N15",
+        "N16",
+        "N17",
+        "N18",
+        "N19",
+        "N20"
+      ]
+    },
+    "清掃": {
+      "primary": [
+        "清掃員A",
+        "清掃員B",
+        "清掃員C",
+        "清掃員D"
+      ],
+      "secondary": [],
+      "third": [
+        "N1",
+        "N2",
+        "N3",
+        "N4",
+        "N5",
+        "N6",
+        "N7",
+        "N8",
+        "N9",
+        "N10",
+        "N11",
+        "N12",
+        "N13",
+        "N14",
+        "N15",
+        "N16",
+        "N17",
+        "N18",
+        "N19",
+        "N20"
+      ]
+    },
+    "売店": {
+      "primary": [
+        "売店従業員A",
+        "売店従業員B",
+        "売店従業員C"
+      ],
+      "secondary": [],
+      "third": [
+        "N1",
+        "N2",
+        "N3",
+        "N4",
+        "N5",
+        "N6",
+        "N7",
+        "N8",
+        "N9",
+        "N10",
+        "N11",
+        "N12",
+        "N13",
+        "N14",
+        "N15",
+        "N16",
+        "N17",
+        "N18",
+        "N19",
+        "N20"
+      ]
+    }
+  },
+  "daily_requirements": {
+    "責任者": {
+      "normal_min": 1,
+      "normal_max": 1,
+      "friend_min": 1,
+      "friend_max": 1
+    },
+    "事務": {
+      "normal_min": 1,
+      "normal_max": 2,
+      "friend_min": 1,
+      "friend_max": 2
+    },
+    "囲炉裏": {
+      "normal_min": 1,
+      "normal_max": 1,
+      "friend_min": 1,
+      "friend_max": 1
+    },
+    "人火葬": {
+      "normal_min": 6,
+      "normal_max": 7,
+      "friend_min": 5,
+      "friend_max": 5
+    },
+    "動物火葬": {
+      "normal_min": 1,
+      "normal_max": 2,
+      "friend_min": 1,
+      "friend_max": 2
+    },
+    "運送": {
+      "normal_min": 2,
+      "normal_max": 2,
+      "friend_min": 2,
+      "friend_max": 2
+    },
+    "清掃": {
+      "normal_min": 2,
+      "normal_max": 2,
+      "friend_min": 2,
+      "friend_max": 2
+    },
+    "売店": {
+      "normal_min": 2,
+      "normal_max": 2,
+      "friend_min": 2,
+      "friend_max": 2
+    }
+  },
+  "work_constraints": {
+    "employee": {
+      "days_off_per_7days": 2,
+      "max_consecutive_days": 7,
+      "min_monthly_workdays": 0
+    },
+    "part_timer": {
+      "days_off_per_7days": 0,
+      "max_consecutive_days": 3,
+      "min_monthly_workdays": 0
+    },
+    "dummy": {
+      "days_off_per_7days": 0,
+      "max_consecutive_days": 31,
+      "min_monthly_workdays": 0
+    }
+  },
+  "calendar": {
+    "April": {
+      "days_in_month": 30,
+      "friend_days": [
+        1,
+        12,
+        18,
+        24,
+        30
+      ]
+    },
+    "May": {
+      "days_in_month": 31,
+      "friend_days": [
+        10,
+        16,
+        22,
+        28
+      ]
+    },
+    "June": {
+      "days_in_month": 30,
+      "friend_days": [
+        3,
+        8,
+        14,
+        20,
+        26
+      ]
+    },
+    "July": {
+      "days_in_month": 31,
+      "friend_days": [
+        2,
+        6,
+        12,
+        18,
+        24,
+        30
+      ]
+    },
+    "August": {
+      "days_in_month": 31,
+      "friend_days": [
+        3,
+        9,
+        15,
+        21,
+        27
+      ]
+    },
+    "September": {
+      "days_in_month": 30,
+      "friend_days": [
+        1,
+        7,
+        13,
+        19,
+        25
+      ]
+    },
+    "October": {
+      "days_in_month": 31,
+      "friend_days": [
+        5,
+        11,
+        17,
+        23
+      ]
+    },
+    "November": {
+      "days_in_month": 30,
+      "friend_days": [
+        2,
+        8,
+        14,
+        20,
+        26
+      ]
+    },
+    "December": {
+      "days_in_month": 31,
+      "friend_days": [
+        1,
+        7,
+        13,
+        19,
+        25,
+        30
+      ]
+    },
+    "January": {
+      "days_in_month": 31,
+      "friend_days": [
+        5,
+        11,
+        17,
+        23,
+        28
+      ]
+    },
+    "February": {
+      "days_in_month": 29,
+      "friend_days": [
+        3,
+        9,
+        15,
+        21,
+        25
+      ]
+    },
+    "March": {
+      "days_in_month": 31,
+      "friend_days": [
+        2,
+        8,
+        14,
+        20,
+        31
+      ]
+    }
+  }
+}
