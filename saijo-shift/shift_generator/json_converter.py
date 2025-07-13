@@ -2,19 +2,20 @@ import json
 import calendar
 import os
 
+print("open")
 current_path = os.getcwd()
 print(current_path)
 # 旧JSONファイル (あなたの既存の入力用)
 #JSON_BEFORE = "../server/output/define.json"
-JSON_BEFORE = "../suidou.json"
+JSON_BEFORE = f"{current_path}/server/define/define.json"
 # 新JSONファイル (変換後の出力先)
-JSON_AFTER = "./new.json"
+JSON_AFTER = f"{current_path}/shift_generator/new.json"
 # 六曜情報を含むJSONファイル
-ROKUYOU_JSON = "./rokuyou.json"
+ROKUYOU_JSON = f"{current_path}/shift_generator/rokuyou.json"
 
 def create_calendar(year: int):
     """
-    指定された 'year' の1～12月分の「days_in_month」と「友引の日(friend_days)」を
+    指定された 'year' の今年4～翌年3月分の「days_in_month」と「友引の日(friend_days)」を
     ROKUYOU_JSON から取得して返す関数。
 
     【想定する rokuyou.json の構造】
@@ -39,39 +40,33 @@ def create_calendar(year: int):
     with open(ROKUYOU_JSON, "r", encoding="utf-8") as f:
         rokuyou_data = json.load(f)
 
-    # "calendar" キーに、月英名をキーとした六曜リストが入っている想定
-    # 例: rokuyou_data["calendar"]["April"] = [ { "day": 1, "rokuyo": "赤口" }, ... ]
-    input_calendar = rokuyou_data["calendar"]
+    # ★リストからyearが一致するものを探す
+    found = None
+    for entry in rokuyou_data:
+        if entry.get("year") == year:
+            found = entry
+            break
+    if not found:
+        raise ValueError(f"rokuyou.json に year={year} のカレンダーが見つかりません")
 
-    # 月英名と対応させるためのリスト
+    input_calendar = found["calendar"]
+
     month_names = [
         "April", "May", "June", "July", "August", "September",
         "October", "November", "December", "January", "February", "March", 
     ]
 
-    # 結果を格納する辞書
     data = {}
-
     for m_name in month_names:
-        # rokuyou.json の "calendar" 内に、この月名が無い場合はスキップ
         if m_name not in input_calendar:
             continue
-        
-        # 例: [ { "day": 1, "rokuyo": "赤口" }, { "day": 2, "rokuyo": "先勝" }, ... ]
         days_list = input_calendar[m_name]
-
-        # days_in_month (月の日数) をリストの "day" の最大値から求める
         days_in_month = max(item["day"] for item in days_list)
-
-        # rokuyo が "友引" の日だけ取り出す
         friend_days = [item["day"] for item in days_list if item["rokuyo"] == "友引"]
-
-        # データを格納
         data[m_name] = {
             "days_in_month": days_in_month,
             "friend_days": friend_days
         }
-
     return data
 
 
