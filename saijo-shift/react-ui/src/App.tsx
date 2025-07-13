@@ -12,9 +12,7 @@ import RoleListDnD from "../components/RoleListDnD";
 import WorkConstraintsTable from "../components/WorkConstraintsTable";
 
 function App() {
-  // =========================
   // ① シフトデータの状態
-  // =========================
   const [data, setData] = useState<ShiftConfig>({
     year: 2025,
     roles: {
@@ -98,9 +96,7 @@ function App() {
     },
   });
 
-  // =========================
   // ② ステート一覧
-  // =========================
   const [fileList, setFileList] = useState<string[]>([]);
   const [selectedFile, setSelectedFile] = useState<string>("");
   const [saveFilename, setSaveFilename] = useState<string>("");
@@ -108,11 +104,15 @@ function App() {
   const [fileForShift, setFileForShift] = useState<string>("");
   const [requirementOrder, setRequirementOrder] = useState<string[]>(Object.keys(data.daily_requirements));
   const [rolesOrder, setRolesOrder] = useState<string[]>(Object.keys(data.roles));
+  const [csvTargetFile, setCsvTargetFile] = useState<string>("");
+  const [csvExporting, setCsvExporting] = useState<boolean>(false);
+  const [csvUrls, setCsvUrls] = useState<null | {
+    shift: string, summary: string, workDays: string
+  }>(null);
+  const [zipUrl, setZipUrl] = useState<string | null>(null);
+  const [zipFileName, setZipFileName] = useState<string | null>(null);
 
-  
-  // =========================
   // ④ 起動時にファイル一覧を取得
-  // =========================
   useEffect(() => {
     fetch("http://localhost:3001/api/list-files")
       .then((res) => res.json())
@@ -124,18 +124,18 @@ function App() {
       });
   }, []);
 
-  // =========================
-  // ⑤ ファイル一覧の <select> で読み込む
-  // =========================
+  // ⑤ ファイル読み込み
   const handleLoadFile = async () => {
     if (!selectedFile) {
       alert("読み込むファイルを選択してください");
       return;
     }
     try {
+      console.log("run-python fetch開始");
       const res = await fetch(
         `http://localhost:3001/api/load-json?filename=${selectedFile}`
       );
+      console.log("run-python fetchレスポンス", res);
       if (!res.ok) {
         if (res.status === 404) {
           alert("指定ファイルは存在しません");
@@ -145,41 +145,35 @@ function App() {
         return;
       }
       const loadedData = await res.json();
-  
+
       setData(loadedData);
-  
-      // --- 職種一覧の並び順（requirementOrder） ---
+
       if (loadedData.requirementOrder) {
         setRequirementOrder(loadedData.requirementOrder);
       } else {
         setRequirementOrder(Object.keys(loadedData.daily_requirements));
       }
-  
-      // --- 役職一覧の並び順（rolesOrder） ---
+
       if (loadedData.rolesOrder) {
         setRolesOrder(loadedData.rolesOrder);
       } else {
         setRolesOrder(Object.keys(loadedData.roles));
       }
-  
+
       alert(`${selectedFile}.json を読み込みました`);
     } catch (err) {
       console.error("読み込みエラー:", err);
       alert("読み込みエラーです");
     }
   };
-  
 
-  // =========================
-  // ⑥ 新規ファイル名を指定して保存
-  // =========================
+  // ⑥ ファイル保存
   const handleSaveFile = async () => {
     if (!saveFilename) {
       alert("ファイル名を入力してください");
       return;
     }
     try {
-      // 順序通りに新しいオブジェクトを構築
       const orderedRoles: { [key: string]: { type: string; count: number } } = {};
       rolesOrder.forEach(key => {
         if (data.roles[key]) orderedRoles[key] = data.roles[key];
@@ -190,8 +184,7 @@ function App() {
         if (data.daily_requirements[key]) orderedDailyRequirements[key] = data.daily_requirements[key];
         if (data.role_capability[key]) orderedRoleCapability[key] = data.role_capability[key];
       });
-  
-      // JSONとして保存するデータ
+
       const dataToSave = {
         ...data,
         roles: orderedRoles,
@@ -200,13 +193,13 @@ function App() {
         rolesOrder,
         requirementOrder,
       };
-  
+
       const res = await fetch(
         `http://localhost:3001/api/save-json?filename=${saveFilename}&key=normal`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(dataToSave), // ←★★ここを修正！★★
+          body: JSON.stringify(dataToSave),
         }
       );
       if (res.ok) {
@@ -225,10 +218,7 @@ function App() {
     }
   };
 
-  // =========================
   // ⑦ 役職の編集ハンドラ
-  // =========================
-  // 役職の編集ハンドラ
   const handleRoleChange = (
     roleKey: string,
     field: "type" | "count",
@@ -246,7 +236,6 @@ function App() {
     }));
   };
 
-  // 役職追加ハンドラ（RoleListTable用にprops化）
   const handleAddRole = (roleKey: string, type: "employee" | "part_timer") => {
     setData(prev => ({
       ...prev,
@@ -267,9 +256,7 @@ function App() {
     setRolesOrder(prev => prev.filter(key => key !== roleKey));
   };
 
-  // =========================
   // ⑧ Daily Requirements の編集ハンドラ
-  // =========================
   const handleDailyRequirementChange = (
     reqKey: string,
     field: keyof DailyRequirement,
@@ -287,43 +274,38 @@ function App() {
     }));
   };
 
-  // daily_requirementsに職種を追加
-const handleAddDailyRequirement = (key: string) => {
-  // 既にある場合は追加しない
-  if (data.daily_requirements[key]) return;
-  setData(prev => ({
-    ...prev,
-    daily_requirements: {
-      ...prev.daily_requirements,
-      [key]: { normal_min: 1, normal_max: 1, friend_min: 1, friend_max: 1 }
-    },
-    role_capability: {
-      ...prev.role_capability,
-      [key]: { primary: [], secondary: [], third: [] } // ←初期化
-    }
-  }));
-  setRequirementOrder(prev => [...prev, key]);
-};
-
-// daily_requirementsから職種を削除
-const handleDeleteDailyRequirement = (key: string) => {
-  setData(prev => {
-    const newReqs = { ...prev.daily_requirements };
-    delete newReqs[key];
-    const newRoleCaps = { ...prev.role_capability };
-    delete newRoleCaps[key];
-    return {
+  const handleAddDailyRequirement = (key: string) => {
+    if (data.daily_requirements[key]) return;
+    setData(prev => ({
       ...prev,
-      daily_requirements: newReqs,
-      role_capability: newRoleCaps
-    };
-  });
-  setRequirementOrder(prev => prev.filter(k => k !== key));
-};
+      daily_requirements: {
+        ...prev.daily_requirements,
+        [key]: { normal_min: 1, normal_max: 1, friend_min: 1, friend_max: 1 }
+      },
+      role_capability: {
+        ...prev.role_capability,
+        [key]: { primary: [], secondary: [], third: [] }
+      }
+    }));
+    setRequirementOrder(prev => [...prev, key]);
+  };
 
-  // =========================
+  const handleDeleteDailyRequirement = (key: string) => {
+    setData(prev => {
+      const newReqs = { ...prev.daily_requirements };
+      delete newReqs[key];
+      const newRoleCaps = { ...prev.role_capability };
+      delete newRoleCaps[key];
+      return {
+        ...prev,
+        daily_requirements: newReqs,
+        role_capability: newRoleCaps
+      };
+    });
+    setRequirementOrder(prev => prev.filter(k => k !== key));
+  };
+
   // ⑨ Role Capability の編集ハンドラ (DnD用)
-  // =========================
   const handleRoleCapabilityDnDUpdate = (
     capKey: string,
     level: "primary" | "secondary",
@@ -412,11 +394,9 @@ const handleDeleteDailyRequirement = (key: string) => {
     return duplicate;
   };
 
-  // =========================
   // ⑩ Work Constraints の編集
-  // =========================
   const handleWorkConstraintsChange = (
-    typeKey: keyof WorkConstraints, // ← ここをstringからkeyof WorkConstraintsに
+    typeKey: keyof WorkConstraints,
     field: keyof WorkConstraint,
     value: number
   ) => {
@@ -432,25 +412,32 @@ const handleDeleteDailyRequirement = (key: string) => {
     }));
   };
 
-  // =========================
-  // ⑪ シフト作成実行機能
-  // =========================
-  const handleCreateShiftFile = async () => {
-    if (!fileForShift) {
-      alert("コピー元のファイルを選択してください");
+  // ⑫ 実行ボタン：define.jsonへコピー→計算→DLリンク
+  const handleRunWithDefineCopy = async () => {
+    console.log("実行ボタンが押された");
+
+    setCsvExporting(true);
+    setCsvUrls(null);
+    if (!csvTargetFile) {
+      alert("CSVを出力するjsonファイルを選択してください");
+      setCsvExporting(false);
       return;
     }
     try {
-      const readRes = await fetch(
-        `http://localhost:3001/api/load-json?filename=${fileForShift}`
+      // 1. 選択ファイルの内容を取得
+      const getRes = await fetch(
+        `http://localhost:3001/api/load-json?filename=${csvTargetFile}`
       );
-      if (!readRes.ok) {
-        alert(`ファイル ${fileForShift}.json の読み込みに失敗しました。`);
+      if (!getRes.ok) {
+        alert("jsonの読み込みに失敗しました");
+        setCsvExporting(false);
         return;
       }
-      const fileData = await readRes.json();
+      const fileData = await getRes.json();
+
+      // 2. define.json として保存
       const saveRes = await fetch(
-        `http://localhost:3001/api/save-json?filename=define&key=define`,
+        "http://localhost:3001/api/save-json?filename=define&key=define",
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -459,15 +446,28 @@ const handleDeleteDailyRequirement = (key: string) => {
       );
       if (!saveRes.ok) {
         alert("define.json として保存に失敗しました。");
+        setCsvExporting(false);
         return;
       }
-      alert(`${fileForShift}.json をコピーして define.json を作成しました！`);
-      setFileForShift("");
-      setShowShiftCreate(false);
+
+      // 3. python計算（run-python, define.json使用）
+      const runRes = await fetch("http://localhost:3001/api/run-python", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ filename: csvTargetFile }), // ←ここは動的なjson名でOK
+      });
+      if (runRes.ok) {
+        const { zipFileName, zipUrl } = await runRes.json();
+        setZipFileName(zipFileName);
+        setZipUrl(zipUrl);
+      } else {
+        alert("CSV作成に失敗しました");
+      }
     } catch (err) {
+      alert("サーバーに接続できませんでした");
       console.error(err);
-      alert("シフト作成中にエラーが発生しました。");
     }
+      setCsvExporting(false);
   };
 
   // =========================
@@ -475,71 +475,55 @@ const handleDeleteDailyRequirement = (key: string) => {
   // =========================
   return (
     <div style={{ margin: "20px" }}>
-      <h1>シフトツール (TypeScript版)</h1>
+      <h1>シフト作成ツール</h1>
 
-      {/* シフト作成モーダル */}
-      <button
-        onClick={() => setShowShiftCreate(true)}
-        style={{ marginBottom: 20 }}
-      >
-        シフト作成
-      </button>
-      {showShiftCreate && (
-        <div
-          style={{
-            position: "fixed",
-            top: 0,
-            left: 0,
-            width: "100vw",
-            height: "100vh",
-            backgroundColor: "rgba(0, 0, 0, 0.5)",
-            display: "flex",
-            justifyContent: "center",
-            alignItems: "center",
-            zIndex: 9999,
-          }}
-          onClick={() => setShowShiftCreate(false)}
-        >
-          <div
-            style={{
-              backgroundColor: "#fff",
-              padding: 20,
-              borderRadius: 8,
-              minWidth: 300,
-              position: "relative",
-            }}
-            onClick={(e) => e.stopPropagation()}
+      {/* CSV出力エリア */}
+      <section style={{ border: "1px solid #82c5fc", padding: 10, marginBottom: 24 }}>
+        <h2>CSV出力（実行）</h2>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <select
+            value={csvTargetFile}
+            onChange={e => setCsvTargetFile(e.target.value)}
+            style={{ minWidth: 160 }}
           >
-            <h2>シフト作成</h2>
-            <p>使用するファイルを選択してください</p>
-            <select
-              value={fileForShift}
-              onChange={(e) => setFileForShift(e.target.value)}
-              style={{ display: "block", marginBottom: 12 }}
-            >
-              <option value="">--ファイルを選択してください--</option>
-              {fileList.map((f) => (
-                <option key={f} value={f}>
-                  {f}.json
-                </option>
-              ))}
-            </select>
-            <button onClick={handleCreateShiftFile} style={{ marginRight: 8 }}>
-              確定
-            </button>
-            <button onClick={() => setShowShiftCreate(false)}>
-              キャンセル
-            </button>
-          </div>
+            <option value="">--出力するjsonファイルを選択--</option>
+            {fileList.map(f => (
+              <option key={f} value={f}>{f}.json</option>
+            ))}
+          </select>
+          <button
+            onClick={handleRunWithDefineCopy}
+            disabled={csvExporting}
+            style={{
+              padding: "6px 22px",
+              borderRadius: 8,
+              background: "linear-gradient(90deg,#8eefff,#b4b1ff)",
+              color: "#224",
+              fontWeight: 600,
+              fontSize: 16,
+              border: "none",
+              cursor: csvExporting ? "wait" : "pointer"
+            }}
+          >
+            {csvExporting ? "計算中..." : "実行"}
+          </button>
         </div>
-      )}
+        {zipUrl && zipFileName && (
+          <div style={{ marginTop: 18 }}>
+            <b>CSV出力完了・ダウンロード：</b><br />
+            <a href={`http://localhost:3001${zipUrl}`} download={zipFileName}>
+              シフト（output_shiftフォルダ）をダウンロード
+            </a>
+            <br />
+          </div>
+        )}
+      </section>
 
-      {/* 1) ファイル操作エリア */}
+      {/* ファイル操作エリア */}
       <section
         style={{ border: "1px solid #ccc", padding: 10, marginBottom: 20 }}
       >
         <h2>ファイル操作</h2>
-        {/* (A) ファイル保存 */}
         <div style={{ marginBottom: 10 }}>
           <label>保存ファイル名: </label>
           <input
@@ -552,7 +536,6 @@ const handleDeleteDailyRequirement = (key: string) => {
             保存
           </button>
         </div>
-        {/* (B) ファイル読み込み */}
         <div>
           <label>読み込むファイル: </label>
           <select
@@ -572,8 +555,6 @@ const handleDeleteDailyRequirement = (key: string) => {
         </div>
       </section>
 
-
-
       {/* 年の設定 */}
       <section style={{ marginBottom: 20 }}>
         <h2>年度指定</h2>
@@ -591,8 +572,6 @@ const handleDeleteDailyRequirement = (key: string) => {
       </section>
 
       <div style={{ display: "flex", gap: 40, alignItems: "flex-start" }}>
-        {/* 2) Roles セクション */}
-        {/* 役職一覧 */}
         <div style={{ flex: 1 }}>
           <h2>役職一覧</h2>
           <RoleListDnD
@@ -604,55 +583,53 @@ const handleDeleteDailyRequirement = (key: string) => {
             onDeleteRole={handleDeleteRole}
           />
         </div>
-        {/* 3) Daily Requirements セクション */}
-        {/* 職種一覧 */}
         <div style={{ flex: 1 }}>
-        <DailyRequirementsTable
-          dailyRequirements={data.daily_requirements}
-          order={requirementOrder}
-          onOrderChange={setRequirementOrder}
-          onChange={handleDailyRequirementChange}
-          onAdd={handleAddDailyRequirement}
-          onDelete={handleDeleteDailyRequirement}
-        />
+          <DailyRequirementsTable
+            dailyRequirements={data.daily_requirements}
+            order={requirementOrder}
+            onOrderChange={setRequirementOrder}
+            onChange={handleDailyRequirementChange}
+            onAdd={handleAddDailyRequirement}
+            onDelete={handleDeleteDailyRequirement}
+          />
         </div>
       </div>
 
-      {/* 4) Role Capability セクション（DnD UI） */}
+      {/* Role Capability セクション（DnD UI） */}
       <section style={{ marginBottom: 20 }}>
         <h2>割り当て可能な職種</h2>
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "1fr 1fr", // 2列グリッド
-              gap: 20,                        // カード間のスペース
-              alignItems: "flex-start"
-            }}
-          >
-        {requirementOrder.map(capKey => (
-        data.role_capability[capKey] && (
-          <RoleCapabilityDnD
-            key={capKey}
-            capKey={capKey}
-            capability={data.role_capability[capKey]}
-            roles={data.roles}
-            onUpdate={(level, arr) => handleRoleCapabilityDnDUpdate(capKey, level, arr)}
-            onEdit={(level, index, value) => handleRoleCapabilityEdit(capKey, level, index, value)}
-            onDelete={(level, index) => handleRoleCapabilityDelete(capKey, level, index)}
-            onAdd={(level, value) => handleRoleCapabilityAdd(capKey, level, value)}
-          />
-        )
-      ))}
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "1fr 1fr",
+            gap: 20,
+            alignItems: "flex-start"
+          }}
+        >
+          {requirementOrder.map(capKey => (
+            data.role_capability[capKey] && (
+              <RoleCapabilityDnD
+                key={capKey}
+                capKey={capKey}
+                capability={data.role_capability[capKey]}
+                roles={data.roles}
+                onUpdate={(level, arr) => handleRoleCapabilityDnDUpdate(capKey, level, arr)}
+                onEdit={(level, index, value) => handleRoleCapabilityEdit(capKey, level, index, value)}
+                onDelete={(level, index) => handleRoleCapabilityDelete(capKey, level, index)}
+                onAdd={(level, value) => handleRoleCapabilityAdd(capKey, level, value)}
+              />
+            )
+          ))}
         </div>
       </section>
 
-      {/* 5) Work Constraints セクション */}
+      {/* Work Constraints セクション */}
       <WorkConstraintsTable
         workConstraints={data.work_constraints}
         onChange={handleWorkConstraintsChange}
       />
 
-      {/* 6) JSON 出力プレビュー */}
+      {/* JSON 出力プレビュー */}
       <section>
         <h2>生成される JSON</h2>
         <pre>{JSON.stringify(data, null, 2)}</pre>

@@ -1,11 +1,11 @@
 {
-  "year": 2027,
+  "year": 2025,
   "roles": {
-    "統括": {
+    "副統括": {
       "type": "employee",
       "count": 1
     },
-    "副統括": {
+    "統括": {
       "type": "employee",
       "count": 1
     },
@@ -32,24 +32,20 @@
     "パート短": {
       "type": "part_timer",
       "count": 4
-    },
-    "海賊王": {
-      "type": "part_timer",
-      "count": 1
     }
   },
   "daily_requirements": {
-    "責任者": {
-      "normal_min": 1,
-      "normal_max": 1,
-      "friend_min": 1,
-      "friend_max": 1
-    },
     "事務": {
       "normal_min": 1,
       "normal_max": 2,
       "friend_min": 1,
       "friend_max": 2
+    },
+    "責任者": {
+      "normal_min": 1,
+      "normal_max": 1,
+      "friend_min": 1,
+      "friend_max": 1
     },
     "囲炉裏": {
       "normal_min": 1,
@@ -89,19 +85,16 @@
     }
   },
   "role_capability": {
-    "責任者": {
-      "primary": [
-        "統括",
-        "海賊王"
-      ],
-      "secondary": [
-        "副統括"
-      ],
-      "third": []
-    },
     "事務": {
       "primary": [
         "事務員"
+      ],
+      "secondary": [],
+      "third": []
+    },
+    "責任者": {
+      "primary": [
+        "統括"
       ],
       "secondary": [
         "副統括"
@@ -163,7 +156,7 @@
     "employee": {
       "weekly_days_off": 2,
       "max_consecutive_days": 7,
-      "min_monthly_workdays": 21
+      "min_monthly_workdays": 20
     },
     "part_timer": {
       "weekly_days_off": 0,
@@ -175,5 +168,25 @@
       "max_consecutive_days": 31,
       "min_monthly_workdays": 0
     }
-  }
+  },
+  "rolesOrder": [
+    "副統括",
+    "統括",
+    "火葬員",
+    "清掃員",
+    "売店従業員",
+    "霊柩運送員",
+    "パート長",
+    "パート短"
+  ],
+  "requirementOrder": [
+    "事務",
+    "責任者",
+    "囲炉裏",
+    "人火葬",
+    "動物火葬",
+    "運送",
+    "清掃",
+    "売店"
+  ]
 }
