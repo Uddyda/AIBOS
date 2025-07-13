@@ -1,8 +1,15 @@
 import json
 import pandas as pd
 from ortools.sat.python import cp_model
+import os
+import sys
 
-json_path = "./new.json"
+
+dir_name = sys.argv[1]  # 0番目はスクリプト名。1番目以降が引数。serevr.jsから受け取ったアウトプット用のディレクトリ名
+print("受け取ったディレクトリ名:", dir_name)
+
+current_path=os.getcwd()
+json_path = f"{current_path}/shift_generator/new.json"
 
 month_map = {
     "January": 1,
@@ -18,6 +25,12 @@ month_map = {
     "November": 11,
     "December": 12
 }
+
+# 保存先のディレクトリを選択する
+os.makedirs(os.path.join(current_path, "${dir_name}"), exist_ok=True)
+os.makedirs(os.path.join(dir_name, "shifts"), exist_ok=True)
+os.makedirs(os.path.join(dir_name, "summary"), exist_ok=True)
+os.makedirs(os.path.join(dir_name, "work_days"), exist_ok=True)
 
 def load_config(path):
     with open(path, "r", encoding="utf-8") as f:
@@ -262,14 +275,13 @@ def summarize_solution(solution, staff_positions, staff_list, days_in_month, wor
     print("\n=== 3) シフト表(従業員×日) ===")
     print(df_shift)
     # ▼ CSVファイル出力
-    df_shift.to_csv(f"./shifts/shift_result{csv_suffix}.csv", encoding="utf-8-sig")
-    df_staff_days.to_csv(f"./summary/staff_workdays{csv_suffix}.csv", encoding="utf-8-sig")
-    df_day_summary.to_csv(f"./work_days/day_summary{csv_suffix}.csv", encoding="utf-8-sig")
+    df_shift.to_csv(os.path.join(dir_name, "shifts", f"shift_result{csv_suffix}.csv"), encoding="utf-8-sig")
+    df_staff_days.to_csv(os.path.join(dir_name, "summary", f"staff_workdays{csv_suffix}.csv"), encoding="utf-8-sig")
+    df_day_summary.to_csv(os.path.join(dir_name, "work_days", f"day_summary{csv_suffix}.csv"), encoding="utf-8-sig")
 
     return df_staff_days, df_day_summary, df_shift
 
 def main():
-    
     # 4月(April)から翌年3月(March)までを回す例：
     months_to_process = [
         "April", "May", "June", "July", "August", "September",
@@ -339,6 +351,7 @@ def main():
                     print(f"  Day {day_num}, Job '{job}' → {dummy_name}")
 
         n=n+1
+    print("=== 全ての月の処理が完了しました ===")
 
 
 
