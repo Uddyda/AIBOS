@@ -1,5 +1,4 @@
 import { useState, useEffect } from "react";
-import type { ChangeEvent } from "react";
 import type {
   ShiftConfig,
   DailyRequirement,
@@ -104,11 +103,14 @@ function App() {
   const [rolesOrder, setRolesOrder] = useState<string[]>(Object.keys(data.roles));
   const [csvTargetFile, setCsvTargetFile] = useState<string>("");
   const [csvExporting, setCsvExporting] = useState<boolean>(false);
-  const [csvUrls, setCsvUrls] = useState<null | {
+  const [_, setCsvUrls] = useState<null | {
     shift: string, summary: string, workDays: string
   }>(null);
   const [zipUrl, setZipUrl] = useState<string | null>(null);
   const [zipFileName, setZipFileName] = useState<string | null>(null);
+  const [shiftDirs, setShiftDirs] = useState<{ dirName: string, mtime: string }[]>([]);
+  const [showShiftList, setShowShiftList] = useState(false);
+  
 
   // ④ 起動時にファイル一覧を取得
   useEffect(() => {
@@ -121,6 +123,22 @@ function App() {
         console.error("ファイル一覧取得失敗:", err);
       });
   }, []);
+
+  useEffect(() => {
+    fetch("http://localhost:3001/api/list-shift-dirs")
+      .then((res) => res.json())
+      .then((dirs) => {
+        setShiftDirs(dirs);
+      })
+      .catch((err) => {
+        console.error("shiftディレクトリ一覧取得失敗:", err);
+      });
+  }, []);
+  // 日時フォーマット用
+  const formatDate = (isoString:string) => {
+    const d = new Date(isoString);
+    return d.toLocaleString("ja-JP", { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+  };
 
   // ⑤ ファイル読み込み
   const handleLoadFile = async () => {
@@ -165,7 +183,7 @@ function App() {
     }
   };
 
-  // ⑥ ファイル保存
+  // ⑥ ファイル保存と削除
   const handleSaveFile = async () => {
     if (!saveFilename) {
       alert("ファイル名を入力してください");
@@ -215,6 +233,83 @@ function App() {
       alert("エラーが発生しました。");
     }
   };
+
+  const handleDeleteFile = async (filename: string) => {
+    if (!window.confirm(`${filename}.json を削除しますか？`)) return;
+    try {
+      const res = await fetch(`http://localhost:3001/api/delete-json?filename=${filename}`, {
+        method: "DELETE",
+      });
+      if (res.ok) {
+        alert(`${filename}.json を削除しました`);
+        // 再取得
+        const updatedList = await fetch("http://localhost:3001/api/list-files").then((r) => r.json());
+        setFileList(updatedList);
+        setSelectedFile(""); // 選択も解除
+        setCsvTargetFile(""); // csv出力対象も解除
+      } else {
+        alert("削除に失敗しました");
+      }
+    } catch (err) {
+      console.error("削除エラー:", err);
+      alert("削除エラーです");
+    }
+  };
+
+  const handleOverwriteFile = async () => {
+    // ファイルが選択されていない場合は警告
+    if (!selectedFile) {
+      alert("上書き保存するファイルを選択してください");
+      return;
+    }
+  
+    // ここ以降はhandleSaveFileと同じ！
+    try {
+      const orderedRoles: { [key: string]: { type: string; count: number } } = {};
+      rolesOrder.forEach(key => {
+        if (data.roles[key]) orderedRoles[key] = data.roles[key];
+      });
+      const orderedDailyRequirements: { [key: string]: DailyRequirement } = {};
+      const orderedRoleCapability: { [key: string]: { primary: string[]; secondary: string[]; third?: string[] } } = {};
+      requirementOrder.forEach(key => {
+        if (data.daily_requirements[key]) orderedDailyRequirements[key] = data.daily_requirements[key];
+        if (data.role_capability[key]) orderedRoleCapability[key] = data.role_capability[key];
+      });
+
+      const dataToSave = {
+        ...data,
+        roles: orderedRoles,
+        daily_requirements: orderedDailyRequirements,
+        role_capability: orderedRoleCapability,
+        rolesOrder,
+        requirementOrder,
+      };
+
+      const res = await fetch(
+        `http://localhost:3001/api/save-json?filename=${selectedFile}&key=normal`, // ←ここをselectedFileに！
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(dataToSave),
+        }
+      );
+      if (res.ok) {
+        alert(`${selectedFile}.json を上書き保存しました！`); // ここもselectedFile
+        const updatedList = await fetch(
+          "http://localhost:3001/api/list-files"
+        ).then((r) => r.json());
+        setFileList(updatedList);
+        // setSaveFilename(""); ← これは上書き時は不要
+      } else {
+        alert("上書き保存に失敗しました。");
+      }
+    } catch (err) {
+      console.error(err);
+      alert("エラーが発生しました。");
+    }
+  };
+  
+  
 
   // ⑦ 役職の編集ハンドラ
   const handleRoleChange = (
@@ -508,13 +603,53 @@ function App() {
         </div>
         {zipUrl && zipFileName && (
           <div style={{ marginTop: 18 }}>
-            <b>CSV出力完了・ダウンロード：</b><br />
+            <b>CSV出力完了：</b><br />
             <a href={`http://localhost:3001${zipUrl}`} download={zipFileName}>
-              シフト（output_shiftフォルダ）をダウンロード
+              作成したシフトをダウンロード
             </a>
             <br />
           </div>
         )}
+
+        <div style={{ marginTop: 18 }}>
+              <button
+                onClick={() => setShowShiftList(v => !v)}
+                style={{
+                  background: "linear-gradient(90deg,#c1d0ff,#e0ffe0)",
+                  color: "#224",
+                  fontWeight: 600,
+                  fontSize: 16,
+                  border: "none",
+                  borderRadius: 8,
+                  padding: "6px 22px",
+                  cursor: "pointer"
+                }}
+              >
+                過去のダウンロードリンクはこちら
+              </button>
+              {showShiftList && (
+                <div style={{ marginTop: 16 }}>
+                  <b>過去のシフト出力（最大10件）</b>
+                  <ul>
+                    {shiftDirs.length === 0 && <li>まだ出力履歴がありません</li>}
+                    {shiftDirs.map(({ dirName, mtime }) => (
+                      <li key={dirName} style={{ margin: "8px 0" }}>
+                        <a
+                          href={`http://localhost:3001/download_zip/${dirName}`}
+                          download={`${dirName}.zip`}
+                          style={{ marginRight: 16 }}
+                        >
+                          {dirName}.zip
+                        </a>
+                        <span style={{ color: "#888", fontSize: 14 }}>
+                          （作成日時: {formatDate(mtime)}）
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
       </section>
 
       {/* ファイル操作エリア */}
@@ -523,7 +658,7 @@ function App() {
       >
         <h2>ファイル操作</h2>
         <div style={{ marginBottom: 10 }}>
-          <label>保存ファイル名: </label>
+          <label>新たに名前を指定して保存: </label>
           <input
             type="text"
             placeholder="myShift"
@@ -535,7 +670,7 @@ function App() {
           </button>
         </div>
         <div>
-          <label>読み込むファイル: </label>
+          <label>ファイルの選択: </label>
           <select
             value={selectedFile}
             onChange={(e) => setSelectedFile(e.target.value)}
@@ -550,6 +685,46 @@ function App() {
           <button onClick={handleLoadFile} style={{ marginLeft: 8 }}>
             読み込み
           </button>
+          {/* ここが「上書き保存」ボタン！ */}
+          {selectedFile && (
+            <button
+              onClick={handleOverwriteFile}
+              style={{
+                marginLeft: 8,
+                padding: "6px 22px",
+                borderRadius: 8,
+                background: "linear-gradient(90deg,#ffe48e,#b1ffb1)", // 黄緑グラデ
+                color: "#224",
+                fontWeight: 600,
+                fontSize: 16,
+                border: "none",
+                cursor: "pointer",
+                transition: "background 0.2s"
+              }}
+            >
+              上書き保存
+            </button>
+          )}
+          {/* 削除ボタン */}
+          {selectedFile && (
+            <button
+              onClick={() => handleDeleteFile(selectedFile)}
+              style={{
+                marginLeft: 8,
+                padding: "6px 22px",
+                borderRadius: 8,
+                background: "linear-gradient(90deg,#ff8e8e,#ffd1b1)", // 赤系グラデ推奨
+                color: "#224",
+                fontWeight: 600,
+                fontSize: 16,
+                border: "none",
+                cursor: "pointer",
+                transition: "background 0.2s"
+              }}
+            >
+              削除
+            </button>
+          )}
         </div>
       </section>
 

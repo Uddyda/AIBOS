@@ -158,7 +158,7 @@
     "employee": {
       "weekly_days_off": 2,
       "max_consecutive_days": 7,
-      "min_monthly_workdays": 0
+      "min_monthly_workdays": 20
     },
     "part_timer": {
       "weekly_days_off": 0,

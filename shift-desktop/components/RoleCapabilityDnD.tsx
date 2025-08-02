@@ -39,9 +39,7 @@ type RoleCapabilityDnDProps = {
 function SortableItem({
   id,
   value,
-  onEdit,
   onDelete,
-  level,
   index,
 }: {
   id: string;
