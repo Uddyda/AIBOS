@@ -96,6 +96,26 @@ app.post("/api/save-json", (req, res) => {
   });
 });
 
+// ------------ ファイル削除 ------------
+app.delete("/api/delete-json", (req, res) => {
+  const filename = req.query.filename;
+  if (!filename) {
+    return res.status(400).send("filename パラメータが必要です。例: ?filename=myShift");
+  }
+  const filePath = path.join(OUTPUT_DIR, `${filename}.json`);
+  if (!fs.existsSync(filePath)) {
+    return res.status(404).send("指定ファイルが存在しません");
+  }
+  fs.unlink(filePath, (err) => {
+    if (err) {
+      console.error("ファイル削除エラー:", err);
+      return res.status(500).send("ファイル削除に失敗しました");
+    }
+    return res.status(200).send("ファイル削除に成功しました");
+  });
+});
+
+
 // ------------ Pythonスクリプトを順次実行するAPI ------------
 app.post("/api/run-python", (req, res) => {
   console.log("==== /api/run-python called ====");
@@ -154,7 +174,7 @@ app.post("/api/run-python", (req, res) => {
     });
   });
   const shiftParentDir = process.cwd();
-  cleanupOldShiftDirs(shiftParentDir, 5);// 古いshiftディレクトリを保持する数（ここに書いた数字＋１個まで保持）
+  cleanupOldShiftDirs(shiftParentDir, 10);// 古いshiftディレクトリを保持する数（ここに書いた数字＋１個まで保持）
 });
 
 // ------------ 静的ファイルを公開(ユーザーがダウンロードするファイル) ------------
@@ -171,6 +191,29 @@ app.get("/download_zip/:dirName", (req, res) => {
   archive.pipe(res);
   archive.finalize();
 });
+
+// 過去の出力CSVのダウンロードリンクを取得
+app.get("/api/list-shift-dirs", (req, res) => {
+  const basePath = path.join(__dirname, ".."); // ← serverと同階層
+  const re = /^shift_.*_\d{8}$/;
+  try {
+    const dirs = fs.readdirSync(basePath)
+      .filter(f => re.test(f) && fs.statSync(path.join(basePath, f)).isDirectory())
+      .map(f => {
+        const stats = fs.statSync(path.join(basePath, f));
+        return {
+          dirName: f,
+          mtime: stats.mtime, // 作成・最終更新日時
+        };
+      })
+      .sort((a, b) => b.mtime - a.mtime); // 新しい順
+    res.status(200).json(dirs);
+  } catch (err) {
+    console.error("shiftディレクトリ一覧取得エラー:", err);
+    res.status(500).send("shiftディレクトリ一覧取得に失敗しました");
+  }
+});
+
 
 // ------------ cleanup関数 --------------
 function cleanupOldFiles(dirPath) {

@@ -4,6 +4,30 @@
   "version": "1.0.0",
   "description": "My Electron application description",
   "main": "src/main.js",
+
+  "build": {
+    "appId": "com.yourcompany.shiftdesktop",
+    "productName": "shift-desktop",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "dist/**/*",
+      "src/main.js"
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "build/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": true,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "shift-desktop"
+    }
+  },
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
@@ -11,7 +35,8 @@
     "package": "electron-forge package",
     "make": "electron-forge make",
     "publish": "electron-forge publish",
-    "lint": "echo \"No linting configured\""
+    "lint": "echo \"No linting configured\"",
+    "dist": "electron-builder"
   },
   "keywords": [],
   "author": "uchidaatsuya",
@@ -31,6 +56,7 @@
     "@vercel/webpack-asset-relocator-loader": "^1.7.3",
     "css-loader": "^6.11.0",
     "electron": "^37.2.1",
+    "electron-builder": "^26.0.12",
     "node-loader": "^2.1.0",
     "style-loader": "^3.3.4",
     "typescript": "^5.8.3"
