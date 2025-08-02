@@ -19,6 +19,11 @@
     "霊柩運送員A": "employee",
     "霊柩運送員B": "employee",
     "霊柩運送員C": "employee",
+    "剣士A": "employee",
+    "剣士B": "employee",
+    "剣士C": "employee",
+    "剣士D": "employee",
+    "海賊王A": "employee",
     "パート長A": "part_timer",
     "パート長B": "part_timer",
     "パート長C": "part_timer",
@@ -307,6 +312,39 @@
         "N19",
         "N20"
       ]
+    },
+    "火影": {
+      "primary": [
+        "海賊王A"
+      ],
+      "secondary": [
+        "剣士A",
+        "剣士B",
+        "剣士C",
+        "剣士D"
+      ],
+      "third": [
+        "N1",
+        "N2",
+        "N3",
+        "N4",
+        "N5",
+        "N6",
+        "N7",
+        "N8",
+        "N9",
+        "N10",
+        "N11",
+        "N12",
+        "N13",
+        "N14",
+        "N15",
+        "N16",
+        "N17",
+        "N18",
+        "N19",
+        "N20"
+      ]
     }
   },
   "daily_requirements": {
@@ -357,6 +395,12 @@
       "normal_max": 2,
       "friend_min": 2,
       "friend_max": 2
+    },
+    "火影": {
+      "normal_min": 1,
+      "normal_max": 1,
+      "friend_min": 1,
+      "friend_max": 1
     }
   },
   "work_constraints": {
