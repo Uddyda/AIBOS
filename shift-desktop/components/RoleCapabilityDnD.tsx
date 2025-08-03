@@ -20,6 +20,7 @@ type RoleCapabilityDnDProps = {
   capKey: string;
   capability: { primary: string[]; secondary: string[] };
   roles: { [role: string]: { type: string; count: number } };
+  rolesOrder: string[];
   onUpdate: (
     level: "primary" | "secondary",
     newArr: string[]
@@ -144,6 +145,7 @@ const RoleCapabilityDnD: React.FC<RoleCapabilityDnDProps> = ({
   capKey,
   capability,
   roles,
+  rolesOrder,
   onUpdate,
   onEdit,
   onDelete,
@@ -248,10 +250,12 @@ const RoleCapabilityDnD: React.FC<RoleCapabilityDnDProps> = ({
               }}
             >
               <option value="">--役職を追加--</option>
-              {Object.keys(roles).map((roleKey) => (
-                <option key={roleKey} value={roleKey}>
-                  {roleKey}
-                </option>
+              {rolesOrder
+                .filter(roleKey => !capability.primary.includes(roleKey))
+                .map((roleKey) => (
+                  <option key={roleKey} value={roleKey}>
+                    {roleKey}
+                  </option>
               ))}
             </select>
           </div>
@@ -296,10 +300,12 @@ const RoleCapabilityDnD: React.FC<RoleCapabilityDnDProps> = ({
               }}
             >
               <option value="">--役職を追加--</option>
-              {Object.keys(roles).map((roleKey) => (
-                <option key={roleKey} value={roleKey}>
-                  {roleKey}
-                </option>
+              {rolesOrder
+                .filter(roleKey => !capability.primary.includes(roleKey))
+                .map((roleKey) => (
+                  <option key={roleKey} value={roleKey}>
+                    {roleKey}
+                  </option>
               ))}
             </select>
           </div>

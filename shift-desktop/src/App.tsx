@@ -344,10 +344,38 @@ function App() {
     setData(prev => {
       const newRoles = { ...prev.roles };
       delete newRoles[roleKey];
-      return { ...prev, roles: newRoles };
+  
+      const newRoleCap = { ...prev.role_capability };
+      // --- ここをprimary/secondaryのみで回す ---
+      const levels: Array<'primary' | 'secondary'> = ['primary', 'secondary'];
+      Object.keys(newRoleCap).forEach(capKey => {
+        levels.forEach(level => {
+          if (newRoleCap[capKey][level]) {
+            newRoleCap[capKey][level] = newRoleCap[capKey][level].filter((v: string) => v !== roleKey);
+          }
+        });
+      });
+  
+      return { ...prev, roles: newRoles, role_capability: newRoleCap };
     });
     setRolesOrder(prev => prev.filter(key => key !== roleKey));
   };
+
+  // 未使用の役職を取得
+  const getUnusedRoles = () => {
+    const usedSet = new Set<string>();
+    const levels: Array<'primary' | 'secondary'> = ['primary', 'secondary'];
+    Object.values(data.role_capability).forEach(capObj => {
+      levels.forEach(level => {
+        if (capObj[level]) {
+          capObj[level].forEach((r: string) => usedSet.add(r));
+        }
+      });
+    });
+    return Object.keys(data.roles).filter(roleKey => !usedSet.has(roleKey));
+  };
+  const unusedRoles = getUnusedRoles(); 
+  
 
   // ⑧ Daily Requirements の編集ハンドラ
   const handleDailyRequirementChange = (
@@ -770,7 +798,21 @@ function App() {
 
       {/* Role Capability セクション（DnD UI） */}
       <section style={{ marginBottom: 20 }}>
-        <h2>割り当て可能な職種</h2>
+        <h2>割り当て可能な職種
+        {unusedRoles.length > 0 && unusedRoles.map(role => (
+          <span key={role} style={{
+            color: "#e22",
+            fontSize: 14,
+            fontWeight: 600,
+            marginLeft: 10,
+            background: "#fff7f7",
+            borderRadius: 6,
+            padding: "3px 10px"
+          }}>
+            {role}が使われていません
+          </span>
+        ))}
+        </h2>
         <div
           style={{
             display: "grid",
@@ -786,6 +828,7 @@ function App() {
                 capKey={capKey}
                 capability={data.role_capability[capKey]}
                 roles={data.roles}
+                rolesOrder={rolesOrder} 
                 onUpdate={(level, arr) => handleRoleCapabilityDnDUpdate(capKey, level, arr)}
                 onEdit={(level, index, value) => handleRoleCapabilityEdit(capKey, level, index, value)}
                 onDelete={(level, index) => handleRoleCapabilityDelete(capKey, level, index)}
