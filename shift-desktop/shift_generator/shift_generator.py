@@ -9,7 +9,8 @@ dir_name = sys.argv[1]  # 0番目はスクリプト名。1番目以降が引数�
 print("受け取ったディレクトリ名:", dir_name)
 
 current_path=os.getcwd()
-json_path = f"{current_path}/shift_generator/new.json"
+#json_path = f"{current_path}/shift_generator/new.json"
+json_path = f"./new.json"
 
 month_map = {
     "January": 1,
@@ -27,7 +28,7 @@ month_map = {
 }
 
 # 保存先のディレクトリを選択する
-os.makedirs(os.path.join(current_path, "${dir_name}"), exist_ok=True)
+os.makedirs(os.path.join(current_path, f"${dir_name}"), exist_ok=True)
 os.makedirs(os.path.join(dir_name, "shifts"), exist_ok=True)
 os.makedirs(os.path.join(dir_name, "summary"), exist_ok=True)
 os.makedirs(os.path.join(dir_name, "work_days"), exist_ok=True)
@@ -164,6 +165,42 @@ def add_rest_constraints(model, x, config, staff_positions, staff_list, days_in_
                 >= min_month
             )
 
+def add_fair_workday_constraints(model, x, staff_positions, staff_list, days_in_month, work_types):
+    # 役職ごとのスタッフリスト作成（dummy除外）
+    pos2staff = {}
+    for s in staff_list:
+        pos = staff_positions[s]
+        if pos == "dummy":
+            continue  # dummyは完全に除外
+        pos2staff.setdefault(pos, []).append(s)
+
+    for pos, staff_of_pos in pos2staff.items():
+        if len(staff_of_pos) < 2:
+            continue  # 一人しかいない役職はフェア制約不要
+
+        workday_vars = []
+        for s in staff_of_pos:
+            var = model.NewIntVar(0, days_in_month, f"workdays_{s}")
+            # その月の勤務日数カウント
+            model.Add(var == sum(x[s][d][w] for d in range(days_in_month) for w in work_types))
+            workday_vars.append(var)
+
+        max_var = model.NewIntVar(0, days_in_month, f"{pos}_max_workdays")
+        min_var = model.NewIntVar(0, days_in_month, f"{pos}_min_workdays")
+        model.AddMaxEquality(max_var, workday_vars)
+        model.AddMinEquality(min_var, workday_vars)
+
+        # 差の許容量を役職ごとに設定
+        if pos == "employee":
+            diff = 1
+        elif pos == "part_timer":
+            diff = 3
+        else:
+            diff = 1  # 念のため（新しい役職が増えたとき用。調整可）
+
+        model.Add(max_var - min_var <= diff)
+
+
 def solve_with_or_tools(config, days_in_month, friend_days):
     # friend day
     friend_days = set(friend_days)
@@ -201,9 +238,13 @@ def solve_with_or_tools(config, days_in_month, friend_days):
     # rest constraints
     add_rest_constraints(model, x, config, staff_positions, staff_list, days_in_month, work_types)
 
+    # フェア勤務日数制約（新たに追加）
+    add_fair_workday_constraints(model, x, staff_positions, staff_list, days_in_month, work_types)
+
+
     # Minimize: sum(secondary) + 10000 * sum(third)
     # thirdの重みを大きくしてさらに優先度下げる
-    COST_FACTOR_THIRD = 10000
+    COST_FACTOR_THIRD = 1000000
     model.Minimize(sum(all_secondary_vars) + COST_FACTOR_THIRD * sum(all_third_vars))
 
     solver = cp_model.CpSolver()
@@ -225,10 +266,14 @@ def solve_with_or_tools(config, days_in_month, friend_days):
     return status, solution, staff_list, staff_positions, work_types
 
 def summarize_solution(solution, staff_positions, staff_list, days_in_month, work_types, month_key, config):
-    year = config["year"]               # 2025のような整数想定
-    month_number = month_map[month_key] # 4, 5, 6, etc.
-    # ファイル名用: 下2桁の年 + 月番号のゼロ埋め2桁 => "2503"
-    csv_suffix = f"{str(year)[2:]}{month_number:02d}"
+    year = config["year"]
+    month_number = month_map[month_key]
+    # 1〜3月は翌年、4〜12月はそのまま
+    if month_number <= 3:
+        actual_year = year + 1
+    else:
+        actual_year = year
+    csv_suffix = f"{str(actual_year)[2:]}{month_number:02d}"
 
     staff_days = {}
     for s in staff_list:

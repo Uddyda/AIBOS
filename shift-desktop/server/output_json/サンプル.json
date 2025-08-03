@@ -13,6 +13,10 @@
       "type": "employee",
       "count": 9
     },
+    "事務員": {
+      "type": "employee",
+      "count": 3
+    },
     "清掃員": {
       "type": "employee",
       "count": 7
@@ -40,10 +44,6 @@
     "葬副統括": {
       "type": "employee",
       "count": 1
-    },
-    "事務員": {
-      "type": "employee",
-      "count": 3
     }
   },
   "daily_requirements": {
@@ -190,14 +190,14 @@
     "統括",
     "副統括",
     "火葬員",
+    "事務員",
     "清掃員",
     "売店従業員",
     "霊柩運送員",
     "パート長",
     "パート短",
     "火葬業務統括",
-    "葬副統括",
-    "事務員"
+    "葬副統括"
   ],
   "requirementOrder": [
     "責任者",
