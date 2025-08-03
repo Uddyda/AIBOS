@@ -1,7 +1,7 @@
 {
   "min_max": 0,
   "priority": 0,
-  "rest": 5,
-  "fairness": 160,
+  "rest": 10,
+  "fairness": 180,
   "dummy": 0
 }
