@@ -501,8 +501,7 @@ def main():
         month_key_per_month.append(month_key)
         violation_logs_per_month.append(violation_log)
 
-    print("=== 全ての月の処理が完了しました ===")
-    log_file.close()
+
 
     for idx in range(len(solutions_per_month)):
         analyze_dummy_reason(
@@ -516,6 +515,9 @@ def main():
             month_key_per_month[idx]
         )
         output_violation_log(violation_logs_per_month[idx], month_key_per_month[idx])
+
+    print("=== 全ての月の処理が完了しました ===")
+    log_file.close()
 
 if __name__ == "__main__":
     main()
