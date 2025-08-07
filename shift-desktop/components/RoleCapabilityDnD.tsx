@@ -144,13 +144,13 @@ function SortableItem({
 const RoleCapabilityDnD: React.FC<RoleCapabilityDnDProps> = ({
   capKey,
   capability,
-  roles,
   rolesOrder,
   onUpdate,
   onEdit,
   onDelete,
   onAdd,
 }) => {
+
   const sensors = useSensors(useSensor(PointerSensor));
 
   function handleDragEnd(level: "primary" | "secondary") {

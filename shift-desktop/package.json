@@ -25,7 +25,11 @@
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "shortcutName": "shift-desktop"
-    }
+    },
+    "extraResources": [
+      "server/**/*",
+      "shift_generator/**/*"
+    ]
   },
   "scripts": {
     "dev": "vite",
