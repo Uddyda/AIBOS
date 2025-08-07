@@ -7,24 +7,22 @@ const archiver = require("archiver");
 const app = express();
 const PORT = 3001;
 
-current_path=process.cwd()
-console.log("現在の__dirname:", __dirname);
-console.log("現在のカレントディレクトリ(process.cwd()):", process.cwd());
+// アプリケーションのトップディレクトリを基準にする
+const appTopDir = path.resolve(__dirname, '..'); // サーバーの親ディレクトリ（アプリのトップディレクトリを基準）
+console.log("アプリケーションのトップディレクトリ:", appTopDir);
 
 // ------------ 設定値 ------------
-const OUTPUT_DIR = path.join(__dirname, "output_json");
-const OUTPUT_CSV = path.join(current_path, "output_shift");
-const DEFINE_JSON_DIRECTORY = path.join(__dirname, "define");
-const baseDir = path.join(__dirname, "../shift_generator");
+const OUTPUT_DIR = path.join(appTopDir, "server", "output_json"); // output_json フォルダへのパス
+const OUTPUT_CSV = path.join(appTopDir, "server", "output_shift"); // output_shift フォルダへのパス
+const DEFINE_JSON_DIRECTORY = path.join(appTopDir, "server", "define"); // define フォルダへのパス
+const baseDir = path.join(appTopDir, "server", "shift_generator"); // shift_generator フォルダへのパス
+
 const MAX_FILE_COUNT = 30;
 const MAX_FILE_AGE_DAYS = 90;
 
 // ------------ ミドルウェア ------------
 app.use(cors());
 app.use(express.json());
-
-
-
 
 // ------------ 初期化 ------------
 if (!fs.existsSync(OUTPUT_DIR)) {
@@ -100,56 +98,33 @@ app.post("/api/save-json", (req, res) => {
   });
 });
 
-// ------------ ファイル削除 ------------
-app.delete("/api/delete-json", (req, res) => {
-  const filename = req.query.filename;
-  if (!filename) {
-    return res.status(400).send("filename パラメータが必要です。例: ?filename=myShift");
-  }
-  const filePath = path.join(OUTPUT_DIR, `${filename}.json`);
-  if (!fs.existsSync(filePath)) {
-    return res.status(404).send("指定ファイルが存在しません");
-  }
-  fs.unlink(filePath, (err) => {
-    if (err) {
-      console.error("ファイル削除エラー:", err);
-      return res.status(500).send("ファイル削除に失敗しました");
-    }
-    return res.status(200).send("ファイル削除に成功しました");
-  });
-});
-
-
 // ------------ Pythonスクリプトを順次実行するAPI ------------
 app.post("/api/run-python", (req, res) => {
   console.log("==== /api/run-python called ====");
 
-  // 動的な出力ディレクトリ名生成
   const { filename } = req.body;
-  const now = new Date();// 例: "2024-07-11T15:30:45.123Z"
+  const now = new Date();
   const yyyy = now.getFullYear();
-  const mm = String(now.getMonth() + 1).padStart(2, "0"); // 月は0始まり
+  const mm = String(now.getMonth() + 1).padStart(2, "0");
   const dd = String(now.getDate()).padStart(2, "0");
-  const dateStr = `${yyyy}${mm}${dd}`;  // "20240711"
+  const dateStr = `${yyyy}${mm}${dd}`;
   const dynamicDirName = `shift_${filename}_${dateStr}`;
-    if (!filename) {
+  
+  if (!filename) {
     return res.status(400).send("filenameパラメータが必要です");
   }
 
-  const jsonPath = path.join(DEFINE_JSON_DIRECTORY, `define.json`);
-  const baseDir = path.join(__dirname, "../shift_generator");
-  const converterPy = path.join(baseDir, "json_converter.py");
-  const shiftGenPy = path.join(baseDir, "shift_generator.py");
+  const jsonPath = path.join(DEFINE_JSON_DIRECTORY, `define.json`);  // define.json ファイルのパス
+  const converterPy = path.join(baseDir, "json_converter.py");  // json_converter.py のパス
+  const shiftGenPy = path.join(baseDir, "shift_generator.py");  // shift_generator.py のパス
 
   if (!fs.existsSync(jsonPath)) {
     console.error("jsonファイルが見つかりません: " + jsonPath);
     return res.status(404).send("指定jsonファイルがありません");
   }
 
-  // Mac の pip --user 問題対策
-  const env = { ...process.env, PYTHONPATH: '/Users/uchidaatsuya/Library/Python/3.9/lib/python/site-packages' };//書き換える必要あり
+  const env = { ...process.env, PYTHONPATH: '/Users/uchidaatsuya/Library/Python/3.9/lib/python/site-packages' };
 
-  // 1. json_converter.py
   execFile("python3", [converterPy, jsonPath], { env }, (err1, stdout1, stderr1) => {
     console.log("=== [json_converter.py] ===");
     if (stdout1) console.log("stdout:", stdout1);
@@ -159,7 +134,6 @@ app.post("/api/run-python", (req, res) => {
       return res.status(500).send("json_converter.py 実行に失敗しました\n" + (stderr1 || err1));
     }
 
-    // 2. shift_generator.py
     execFile("python3", [shiftGenPy, dynamicDirName], { env }, (err2, stdout2, stderr2) => {
       console.log("=== [shift_generator.py] ===");
       if (stdout2) console.log("stdout:", stdout2);
@@ -169,7 +143,6 @@ app.post("/api/run-python", (req, res) => {
         return res.status(500).send("shift_generator.py 実行に失敗しました\n" + (stderr2 || err2));
       }
 
-      // ★成功時
       res.status(200).json({
         message: "計算成功",
         zipFileName: dynamicDirName,
@@ -177,14 +150,12 @@ app.post("/api/run-python", (req, res) => {
       });
     });
   });
-  const shiftParentDir = process.cwd();
-  cleanupOldShiftDirs(shiftParentDir, 10);// 古いshiftディレクトリを保持する数（ここに書いた数字＋１個まで保持）
 });
 
 // ------------ 静的ファイルを公開(ユーザーがダウンロードするファイル) ------------
 app.get("/download_zip/:dirName", (req, res) => {
   const { dirName } = req.params;
-  const targetDir = path.join(process.cwd(), dirName);
+  const targetDir = path.join(appTopDir, dirName);
 
   if (!fs.existsSync(targetDir)) {
     return res.status(404).send("指定ディレクトリが存在しません");
@@ -198,7 +169,7 @@ app.get("/download_zip/:dirName", (req, res) => {
 
 // 過去の出力CSVのダウンロードリンクを取得
 app.get("/api/list-shift-dirs", (req, res) => {
-  const basePath = path.join(__dirname, ".."); // ← serverと同階層
+  const basePath = appTopDir; // ← アプリのトップディレクトリを基準
   const re = /^shift_.*_\d{8}$/;
   try {
     const dirs = fs.readdirSync(basePath)
@@ -217,7 +188,6 @@ app.get("/api/list-shift-dirs", (req, res) => {
     res.status(500).send("shiftディレクトリ一覧取得に失敗しました");
   }
 });
-
 
 // ------------ cleanup関数 --------------
 function cleanupOldFiles(dirPath) {
@@ -255,7 +225,6 @@ function cleanupOldFiles(dirPath) {
   }
 }
 
-// shift_xxx_YYYYMMDD 形式だけを残す
 function cleanupOldShiftDirs(basePath, maxCount) {
   const re = /^shift_.*_\d{8}$/;  // shift_で始まり_8桁で終わる
 

@@ -9,8 +9,8 @@ dir_name = sys.argv[1]  # 0番目はスクリプト名。1番目以降が引数�
 print("受け取ったディレクトリ名:", dir_name)
 
 current_path=os.getcwd()
-#json_path = f"{current_path}/shift_generator/new.json"
-json_path = f"./new.json"
+json_path = f"{current_path}/shift_generator/new.json"
+#json_path = f"./new.json"
 
 month_map = {
     "January": 1,
