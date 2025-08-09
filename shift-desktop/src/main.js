@@ -1,11 +1,13 @@
+// topdir/src/main.js
 const { app, BrowserWindow } = require('electron');
 const path = require('path');
 const { spawn } = require('child_process');
 
-let nodeProcess = null;
-let pythonProcess = null;
+let serverProc = null;
 
 function createWindow() {
+  const isProd = app.isPackaged;
+
   const win = new BrowserWindow({
     width: 1200,
     height: 800,
@@ -15,34 +17,51 @@ function createWindow() {
     },
   });
 
-  const isDev = !app.isPackaged;
-  if (isDev) {
+  if (!isProd) {
+    // Dev: Vite の開発サーバ
     win.loadURL('http://localhost:5173');
   } else {
-    win.loadFile(path.join(__dirname, '../dist/index.html'));
+    // Prod: asar内でも安全に参照できるように app.getAppPath() からの相対にする
+    win.loadFile(path.join(app.getAppPath(), 'dist', 'index.html'));
   }
 }
 
 app.whenReady().then(() => {
-  // 1. Nodeサーバーをspawnで裏起動（例: server/server.js）
-  nodeProcess = spawn('node', [path.join(__dirname, '../server/server.js')], {
-    shell: true,
+  const isProd = app.isPackaged;
+
+  // 読み取り用ルート（dev: リポジトリ直下 / prod: app.asar or resources）
+  const APP_ROOT = app.getAppPath();
+
+  // 書き込み用（OSごとのユーザーデータ領域）
+  const USER_DATA_DIR = app.getPath('userData');
+
+  // server.js の実体（dev も prod も APP_ROOT 配下を見る）
+  const serverJs = path.join(APP_ROOT, 'server', 'server.js');
+
+  // Python 実行ファイル（prod は同梱、dev はシステム python）
+  const PYTHON_BIN = isProd
+    ? path.join(
+        process.resourcesPath,
+        'python',
+        process.platform === 'win32' ? 'python.exe' : 'bin/python3'
+      )
+    : 'python3';
+
+  // Electron 実行ファイルを Node として使い server.js を起動
+  serverProc = spawn(process.execPath, [serverJs], {
+    env: {
+      ...process.env,
+      ELECTRON_RUN_AS_NODE: '1',
+      APP_ROOT,
+      USER_DATA_DIR,
+      PYTHON_BIN,
+      NODE_ENV: isProd ? 'production' : 'development',
+    },
     stdio: 'inherit',
   });
 
-  // 2. Pythonスクリプトもspawnで裏起動（例: shift_generator/hello.py）
-  pythonProcess = spawn('python3', [path.join(__dirname, '../shift_generator/json_converter.py')], {
-    shell: true,
-    stdio: 'inherit',
-  });
-
-  // 3. Pythonスクリプトもspawnで裏起動（例: shift_generator/hello.py）
-  pythonProcess = spawn('python3', [path.join(__dirname, '../shift_generator/shift_generater.py')], {
-    shell: true,
-    stdio: 'inherit',
-  });
-
-  setTimeout(createWindow, 2000); // サーバー起動待ち
+  // NOTE: 厳密には wait-on 等で http://localhost:3001 を待つ方が安全
+  setTimeout(createWindow, 1500);
 });
 
 app.on('window-all-closed', () => {
@@ -50,6 +69,5 @@ app.on('window-all-closed', () => {
 });
 
 app.on('before-quit', () => {
-  if (nodeProcess) nodeProcess.kill();
-  if (pythonProcess) pythonProcess.kill();
+  if (serverProc) serverProc.kill();
 });

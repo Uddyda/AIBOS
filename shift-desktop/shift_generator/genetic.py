@@ -5,7 +5,7 @@ import sys
 import random
 import copy
 
-#コンソールログ出力用
+# コンソールログ出力用
 class MultiOut:
     def __init__(self, *streams):
         self.streams = streams
@@ -15,25 +15,49 @@ class MultiOut:
     def flush(self):
         for s in self.streams:
             s.flush()
+
 # 全部表示（Jupyterなどでも省略されない）
 pd.set_option('display.max_rows', None)
 pd.set_option('display.max_columns', None)
 
-dir_name = "output"
-print("受け取ったディレクトリ名:", dir_name)
+# ====== 引数パース ======
+# argv[1]: 生成ディレクトリ名 (必須)
+# argv[2]: new.json のパス (省略可: カレントディレクトリ/new.json)
+# argv[3]: 出力ルートディレクトリ (省略可: カレントディレクトリ)
+if len(sys.argv) < 2:
+    print("Usage: python <this_file>.py <dir_name> [json_path] [output_root]")
+    sys.exit(1)
 
-current_path = os.getcwd()
-json_path = f"./new.json"
+dir_name = sys.argv[1]
+json_path = sys.argv[2] if len(sys.argv) >= 3 else os.path.join(os.getcwd(), "new.json")
+output_root = sys.argv[3] if len(sys.argv) >= 4 else os.getcwd()
+
+print("[ga_shift] dir_name   :", dir_name)
+print("[ga_shift] json_path  :", json_path)
+print("[ga_shift] output_root:", output_root)
+
+# 出力先ディレクトリ（絶対パス）— ここに全成果物をまとめる
+out_dir = os.path.join(output_root, dir_name)
+os.makedirs(out_dir, exist_ok=True)
+os.makedirs(os.path.join(out_dir, "shifts"), exist_ok=True)
+os.makedirs(os.path.join(out_dir, "summary"), exist_ok=True)
+os.makedirs(os.path.join(out_dir, "work_days"), exist_ok=True)
 
 month_map = {
     "January": 1, "February": 2, "March": 3, "April": 4, "May": 5, "June": 6,
     "July": 7, "August": 8, "September": 9, "October": 10, "November": 11, "December": 12
 }
 
-os.makedirs(os.path.join(current_path, f"{dir_name}"), exist_ok=True)
-os.makedirs(os.path.join(dir_name, "shifts"), exist_ok=True)
-os.makedirs(os.path.join(dir_name, "summary"), exist_ok=True)
-os.makedirs(os.path.join(dir_name, "work_days"), exist_ok=True)
+# ===== 旧コード（無効）：固定パスや current_path, dir_name 直下に出す実装は廃止 =====
+# dir_name = "output"
+# print("受け取ったディレクトリ名:", dir_name)
+# current_path = os.getcwd()
+# json_path = f"./new.json"
+# os.makedirs(os.path.join(current_path, f"{dir_name}"), exist_ok=True)
+# os.makedirs(os.path.join(dir_name, "shifts"), exist_ok=True)
+# os.makedirs(os.path.join(dir_name, "summary"), exist_ok=True)
+# os.makedirs(os.path.join(dir_name, "work_days"), exist_ok=True)
+# ※ 以降は out_dir 配下に集約します。
 
 def load_config(path):
     with open(path, "r", encoding="utf-8") as f:
@@ -105,7 +129,6 @@ def solve_with_ga(config, days_in_month, friend_days, generations=150, populatio
                     for s in selected:
                         genome[s][d] = w
         return genome
-
 
     # 評価関数（ペナルティ詳細＋違反箇所も記録）
     def calc_penalty(genome):
@@ -259,12 +282,8 @@ def solve_with_ga(config, days_in_month, friend_days, generations=150, populatio
             for d in range(days_in_month):
                 if random.random() < mutation_rate:
                     # 必ずprimary→secondary→dummyの優先順で再割り当てする
-                    w_old = genome[s][d]
                     possible_ws = [w for w in work_types if w in priority_map and s in (priority_map[w].get("primary", []) + priority_map[w].get("secondary", []))]
-                    if possible_ws:
-                        genome[s][d] = random.choice(possible_ws)
-                    else:
-                        genome[s][d] = ""
+                    genome[s][d] = random.choice(possible_ws) if possible_ws else ""
         return genome
 
     population = [create_random_genome() for _ in range(population_size)]
@@ -300,15 +319,11 @@ def summarize_solution(solution, staff_positions, staff_list, days_in_month, wor
     year = config["year"]
     month_number = month_map[month_key]
     work_type_initial = {w: w[0] for w in work_types}
-    if month_number <= 3:
-        actual_year = year + 1
-    else:
-        actual_year = year
+    # 1〜3月は翌年、4〜12月はそのまま
+    actual_year = year + 1 if month_number <= 3 else year
     csv_suffix = f"{str(actual_year)[2:]}{month_number:02d}"
 
-    staff_days = {}
-    for s in staff_list:
-        staff_days[s] = sum(1 for d in range(days_in_month) if solution[s][d] != "")
+    staff_days = {s: sum(1 for d in range(days_in_month) if solution[s][d] != "") for s in staff_list}
 
     day_records = []
     for d in range(days_in_month):
@@ -318,9 +333,7 @@ def summarize_solution(solution, staff_positions, staff_list, days_in_month, wor
         pt_count = sum(1 for s in working_staff if staff_positions[s] == "part_timer")
         dm_count = sum(1 for s in working_staff if staff_positions[s] == "dummy")
 
-        job_counts = {}
-        for w in work_types:
-            job_counts[w] = sum(solution[s][d] == w for s in working_staff)
+        job_counts = {w: sum(solution[s][d] == w for s in working_staff) for w in work_types}
 
         day_records.append({
             "day": d + 1,
@@ -342,10 +355,7 @@ def summarize_solution(solution, staff_positions, staff_list, days_in_month, wor
     for s in staff_list:
         for d in range(days_in_month):
             v = solution[s][d]
-            if v == "":
-                df_shift.at[s, d + 1] = ""
-            else:
-                df_shift.at[s, d + 1] = work_type_initial.get(v, v[0])
+            df_shift.at[s, d + 1] = "" if v == "" else work_type_initial.get(v, v[0])
 
     print("\n=== 1) 従業員ごとの総勤務日数 ===")
     print(df_staff_days)
@@ -353,9 +363,11 @@ def summarize_solution(solution, staff_positions, staff_list, days_in_month, wor
     print(df_day_summary)
     print("\n=== 3) シフト表(従業員×日) ===")
     print(df_shift)
-    df_shift.to_csv(os.path.join(dir_name, "shifts", f"shift_result{csv_suffix}.csv"), encoding="utf-8-sig")
-    df_staff_days.to_csv(os.path.join(dir_name, "summary", f"staff_workdays{csv_suffix}.csv"), encoding="utf-8-sig")
-    df_day_summary.to_csv(os.path.join(dir_name, "work_days", f"day_summary{csv_suffix}.csv"), encoding="utf-8-sig")
+
+    # ▼ CSVファイル出力（※ 出力は out_dir 配下に統一）
+    df_shift.to_csv(os.path.join(out_dir, "shifts",  f"shift_result{csv_suffix}.csv"),  encoding="utf-8-sig")
+    df_staff_days.to_csv(os.path.join(out_dir, "summary", f"staff_workdays{csv_suffix}.csv"), encoding="utf-8-sig")
+    df_day_summary.to_csv(os.path.join(out_dir, "work_days", f"day_summary{csv_suffix}.csv"),   encoding="utf-8-sig")
 
     return df_staff_days, df_day_summary, df_shift
 
@@ -389,7 +401,7 @@ def analyze_dummy_reason(solution, staff_positions, staff_list, days_in_month, w
     if df.empty:
         print(f"ダミー補充発生なし（{month_key}）")
         return
-    out_path = os.path.join(dir_name, "summary", f"dummy_reason_detail_{month_key}.csv")
+    out_path = os.path.join(out_dir, "summary", f"dummy_reason_detail_{month_key}.csv")
     df.to_csv(out_path, encoding="utf-8-sig", index=False)
     print(f"\n=== ダミー補充内訳（{month_key}）CSV: {out_path} ===")
     print(df.head(10))
@@ -404,19 +416,21 @@ def output_violation_log(violation_log, month_key):
         if vlist:
             any_violation = True
             df = pd.DataFrame(vlist)
-            csv_path = os.path.join(dir_name, "summary", f"violation_{k}_{month_key}.csv")
+            csv_path = os.path.join(out_dir, "summary", f"violation_{k}_{month_key}.csv")
             df.to_csv(csv_path, encoding="utf-8-sig", index=False)
             print(f"\n【{month_key}】制約違反 {k} 一覧 → {csv_path}")
             print(df.head(10))
     if not any_violation:
-        print(f"【{month_key}】制約違反なし（すべての制約を満たしています）")
+        print(f"【【{month_key}】制約違反なし（すべての制約を満たしています）")
 
 def main():
+    # 必要な月だけ回すならここを調整
     months_to_process = [
         "April"
     ]
 
-    console_log_path = os.path.join(dir_name, "console_log.txt")
+    # ログは out_dir に出す
+    console_log_path = os.path.join(out_dir, "console_log.txt")
     log_file = open(console_log_path, "w", encoding="utf-8")
     sys.stdout = MultiOut(sys.__stdout__, log_file)
 
@@ -456,19 +470,16 @@ def main():
                 config
             )
 
-        json_penalty_path = os.path.join(dir_name, "summary", f"penalty_detail_{month_key}.json")
+        # ペナルティ詳細JSONも out_dir に保存
+        json_penalty_path = os.path.join(out_dir, "summary", f"penalty_detail_{month_key}.json")
         with open(json_penalty_path, "w", encoding="utf-8") as jf:
             json.dump(penalty_detail, jf, ensure_ascii=False, indent=2)
 
-        dummy_used = False
-        for s in staff_list:
-            if staff_positions[s] == "dummy":
-                for d in range(days_in_month):
-                    if solution[s][d] != "":
-                        dummy_used = True
-                        break
-            if dummy_used:
-                break
+        # ダミー割当の有無チェック
+        dummy_used = any(
+            staff_positions[s] == "dummy" and any(solution[s][d] != "" for d in range(days_in_month))
+            for s in staff_list
+        )
 
         if dummy_used:
             print("=== ダミーが割り当てられました。以下のシフトに警告があります ===")
@@ -491,6 +502,7 @@ def main():
         for k, v in penalty_detail.items():
             print(f"  {k}: {v}")
 
+        # 集計して後から分析
         solutions_per_month.append(solution)
         staff_positions_per_month.append(staff_positions)
         staff_list_per_month.append(staff_list)
@@ -500,8 +512,6 @@ def main():
         friend_days_per_month.append(friend_days)
         month_key_per_month.append(month_key)
         violation_logs_per_month.append(violation_log)
-
-
 
     for idx in range(len(solutions_per_month)):
         analyze_dummy_reason(
