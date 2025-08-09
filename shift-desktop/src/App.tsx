@@ -223,10 +223,12 @@ function App() {
       );
       if (res.ok) {
         alert(`${saveFilename}.json として保存しました！`);
-        const updatedList = await fetch(
-          api("/api/list-shift-dirs")
-        ).then((r) => r.json());
-        setFileList(updatedList);
+        try {
+          const updatedList = await fetch("http://localhost:3001/api/list-files").then(r => r.json());
+          setFileList(updatedList);
+        } catch (e) {
+          console.error("[frontend] refresh list failed", e); // ←追加
+        }
         setSaveFilename("");
       } else {
         alert("保存に失敗しました。");

@@ -13,7 +13,7 @@
     "files": [
       "dist/**/*",
       "src/main.js",
-      "server/**/*"                
+      "server/**/*"
     ],
     "asar": true,
     "win": {
@@ -29,15 +29,9 @@
       "shortcutName": "shift-desktop"
     },
     "extraResources": [
-      {
-        "from": "shift_generator", 
-        "to": "shift_generator"
-      },
-      {
-        "from": "python",         
-        "to": "python",
-        "filter": ["**/*"]
-      }
+      { "from": "shift_generator", "to": "shift_generator" },
+      { "from": "build/python-mac", "to": "python-mac" },
+      { "from": "build/python-win", "to": "python-win" }
     ]
   },
   "scripts": {
@@ -48,7 +42,10 @@
     "make": "electron-forge make",
     "publish": "electron-forge publish",
     "lint": "echo \"No linting configured\"",
-    "dist": "npm run build && electron-builder"   
+    "bundle:py:mac": "python3 -m venv build/python-mac && build/python-mac/bin/python -m pip install --upgrade pip && build/python-mac/bin/pip install pandas",
+    "bundle:py:win": "py -3 -m venv build/python-win && build\\python-win\\Scripts\\python -m pip install --upgrade pip && build\\python-win\\Scripts\\pip install pandas",
+    "dist:mac": "npm run bundle:py:mac && vite build && electron-builder --mac",
+    "dist:win": "npm run bundle:py:win && vite build && electron-builder --win"
   },
   "keywords": [],
   "author": "uchidaatsuya",
@@ -75,14 +72,14 @@
     "vite": "^7.0.6"
   },
   "dependencies": {
-    "cors": "^2.8.5",
-    "express": "^5.1.0",
     "@dnd-kit/core": "^6.3.1",
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
     "@vitejs/plugin-react": "^4.6.0",
     "archiver": "^7.0.1",
+    "cors": "^2.8.5",
     "electron-squirrel-startup": "^1.0.1",
+    "express": "^5.1.0",
     "iconv-lite": "^0.6.3",
     "react": "^19.1.0",
     "react-dom": "^19.1.0"
