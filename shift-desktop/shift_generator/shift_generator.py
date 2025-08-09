@@ -5,12 +5,29 @@ import os
 import sys
 
 
-dir_name = sys.argv[1]  # 0番目はスクリプト名。1番目以降が引数。serevr.jsから受け取ったアウトプット用のディレクトリ名
-print("受け取ったディレクトリ名:", dir_name)
+# ====== 引数パース ======
+# argv[1]: 生成ディレクトリ名 (必須)
+# argv[2]: new.json のパス (省略可: カレントディレクトリ/new.json)
+# argv[3]: 出力ルートディレクトリ (省略可: カレントディレクトリ)
+if len(sys.argv) < 2:
+    print("Usage: python shift_generator.py <dir_name> [json_path] [output_root]")
+    sys.exit(1)
 
-current_path=os.getcwd()
-json_path = f"{current_path}/shift_generator/new.json"
-#json_path = f"./new.json"
+dir_name = sys.argv[1]
+json_path = sys.argv[2] if len(sys.argv) >= 3 else os.path.join(os.getcwd(), "new.json")
+output_root = sys.argv[3] if len(sys.argv) >= 4 else os.getcwd()
+
+print("[shift_generator] dir_name   :", dir_name)
+print("[shift_generator] json_path  :", json_path)
+print("[shift_generator] output_root:", output_root)
+
+# 出力先ディレクトリ（絶対パス）
+#   ここにすべての成果物（shifts/ summary/ work_days/）をまとめる
+out_dir = os.path.join(output_root, dir_name)
+os.makedirs(out_dir, exist_ok=True)
+os.makedirs(os.path.join(out_dir, "shifts"), exist_ok=True)
+os.makedirs(os.path.join(out_dir, "summary"), exist_ok=True)
+os.makedirs(os.path.join(out_dir, "work_days"), exist_ok=True)
 
 month_map = {
     "January": 1,
@@ -27,15 +44,20 @@ month_map = {
     "December": 12
 }
 
-# 保存先のディレクトリを選択する
-os.makedirs(os.path.join(current_path, f"${dir_name}"), exist_ok=True)
-os.makedirs(os.path.join(dir_name, "shifts"), exist_ok=True)
-os.makedirs(os.path.join(dir_name, "summary"), exist_ok=True)
-os.makedirs(os.path.join(dir_name, "work_days"), exist_ok=True)
+# ===== 旧コード（無効）：current_path を使う実装は引数対応と競合するため廃止 =====
+# current_path = os.getcwd()
+# # 保存先のディレクトリを選択する（旧）
+# os.makedirs(os.path.join(current_path, f"${dir_name}"), exist_ok=True)
+# os.makedirs(os.path.join(dir_name, "shifts"), exist_ok=True)
+# os.makedirs(os.path.join(dir_name, "summary"), exist_ok=True)
+# os.makedirs(os.path.join(dir_name, "work_days"), exist_ok=True)
+# ※ 代わりに上の out_dir を使用し、その配下に各ディレクトリを作成する。
+
 
 def load_config(path):
     with open(path, "r", encoding="utf-8") as f:
         return json.load(f)
+
 
 def create_variables(model, staff_list, days_in_month, work_types):
     x = {}
@@ -46,6 +68,7 @@ def create_variables(model, staff_list, days_in_month, work_types):
             for w in work_types:
                 x[s][d][w] = model.NewBoolVar(f"x_{s}_{d}_{w}")
     return x
+
 
 def add_priority_constraints(model, x, config, staff_list, days_in_month, friend_days):
     """
@@ -75,9 +98,10 @@ def add_priority_constraints(model, x, config, staff_list, days_in_month, friend
             else:
                 min_req = daily_req[w]["normal_min"]
                 max_req = daily_req[w]["normal_max"]
-            sum_primary = sum(x[s][d][w] for s in primary_staff if s in staff_list)
-            secondary_list = [x[s][d][w] for s in secondary_staff if s in staff_list]
-            third_list_    = [x[s][d][w] for s in third_staff if s in staff_list]
+
+            sum_primary   = sum(x[s][d][w] for s in primary_staff   if s in staff_list)
+            secondary_list= [x[s][d][w] for s in secondary_staff if s in staff_list]
+            third_list_   = [x[s][d][w] for s in third_staff     if s in staff_list]
 
             sum_secondary = sum(secondary_list)
             sum_third     = sum(third_list_)
@@ -95,6 +119,7 @@ def add_priority_constraints(model, x, config, staff_list, days_in_month, friend
             all_third_vars.extend(third_list_)
 
     return all_secondary_vars, all_third_vars
+
 
 def add_daily_constraints_for_nonpriority(model, x, config, staff_list, days_in_month, friend_days):
     """
@@ -131,10 +156,12 @@ def add_daily_constraints_for_nonpriority(model, x, config, staff_list, days_in_
             model.Add(sum(assign_vars) >= min_req)
             model.Add(sum(assign_vars) <= max_req)
 
+
 def add_one_person_one_job_per_day(model, x, staff_list, days_in_month, work_types):
     for s in staff_list:
         for d in range(days_in_month):
             model.Add(sum(x[s][d][w] for w in work_types) <= 1)
+
 
 def add_rest_constraints(model, x, config, staff_positions, staff_list, days_in_month, work_types):
     for s in staff_list:
@@ -164,6 +191,7 @@ def add_rest_constraints(model, x, config, staff_positions, staff_list, days_in_
                 sum(x[s][d][w] for d in range(days_in_month) for w in work_types)
                 >= min_month
             )
+
 
 def add_fair_workday_constraints(model, x, staff_positions, staff_list, days_in_month, work_types):
     # 役職ごとのスタッフリスト作成（dummy除外）
@@ -225,7 +253,6 @@ def solve_with_or_tools(config, days_in_month, friend_days):
                 for d in range(days_in_month):
                     model.Add(x[s][d][w] == 0)
 
-
     # primary+secondary+third constraints
     all_secondary_vars, all_third_vars = add_priority_constraints(model, x, config, staff_list, days_in_month, friend_days)
 
@@ -240,7 +267,6 @@ def solve_with_or_tools(config, days_in_month, friend_days):
 
     # フェア勤務日数制約（新たに追加）
     add_fair_workday_constraints(model, x, staff_positions, staff_list, days_in_month, work_types)
-
 
     # Minimize: sum(secondary) + 10000 * sum(third)
     # thirdの重みを大きくしてさらに優先度下げる
@@ -264,6 +290,7 @@ def solve_with_or_tools(config, days_in_month, friend_days):
                     break
             solution[s].append(assigned)
     return status, solution, staff_list, staff_positions, work_types
+
 
 def summarize_solution(solution, staff_positions, staff_list, days_in_month, work_types, month_key, config):
     year = config["year"]
@@ -319,12 +346,14 @@ def summarize_solution(solution, staff_positions, staff_list, days_in_month, wor
     print(df_day_summary)
     print("\n=== 3) シフト表(従業員×日) ===")
     print(df_shift)
-    # ▼ CSVファイル出力
-    df_shift.to_csv(os.path.join(dir_name, "shifts", f"shift_result{csv_suffix}.csv"), encoding="utf-8-sig")
-    df_staff_days.to_csv(os.path.join(dir_name, "summary", f"staff_workdays{csv_suffix}.csv"), encoding="utf-8-sig")
-    df_day_summary.to_csv(os.path.join(dir_name, "work_days", f"day_summary{csv_suffix}.csv"), encoding="utf-8-sig")
+
+    # ▼ CSVファイル出力（※ 出力は out_dir 配下に統一）
+    df_shift.to_csv(os.path.join(out_dir, "shifts",  f"shift_result{csv_suffix}.csv"), encoding="utf-8-sig")
+    df_staff_days.to_csv(os.path.join(out_dir, "summary", f"staff_workdays{csv_suffix}.csv"), encoding="utf-8-sig")
+    df_day_summary.to_csv(os.path.join(out_dir, "work_days", f"day_summary{csv_suffix}.csv"), encoding="utf-8-sig")
 
     return df_staff_days, df_day_summary, df_shift
+
 
 def main():
     # 4月(April)から翌年3月(March)までを回す例：
@@ -333,7 +362,7 @@ def main():
         "October", "November", "December", "January", "February", "March"
     ]
 
-    n=1
+    n = 1
     for month_key in months_to_process:
         config = load_config(json_path)
         days_in_month = config["calendar"][month_key]["days_in_month"]
@@ -362,7 +391,7 @@ def main():
                 config
             )
         
-            # 解が見つかった。ダミーの割当をチェック
+        # 解が見つかった。ダミーの割当をチェック
         # ダミーかどうかは positions で "dummy" と定義している想定
         dummy_used = False
         for s in staff_list:
@@ -380,9 +409,6 @@ def main():
         else:
             print("=== シフトが見つかりました (ダミーなし) ===")
 
-        # つづいて集計を表示
-        #summarize_solution(solution, staff_positions, staff_list, days_in_month, work_types, config)
-
         # もし具体的にダミーが入った日付を列挙したいなら
         if dummy_used:
             shortage_list = []
@@ -395,9 +421,9 @@ def main():
                 for (day_num, dummy_name, job) in shortage_list:
                     print(f"  Day {day_num}, Job '{job}' → {dummy_name}")
 
-        n=n+1
-    print("=== 全ての月の処理が完了しました ===")
+        n = n + 1
 
+    print("=== 全ての月の処理が完了しました ===")
 
 
 if __name__ == "__main__":

@@ -10,6 +10,9 @@ import DailyRequirementsTable from "../components/DailyRequirementsTable";
 import RoleListDnD from "../components/RoleListDnD";
 import WorkConstraintsTable from "../components/WorkConstraintsTable";
 
+const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:3001";
+const api = (path: string) => `${API_BASE}${path}`;
+
 function App() {
   // ① シフトデータの状態
   const [data, setData] = useState<ShiftConfig>({
@@ -114,7 +117,7 @@ function App() {
 
   // ④ 起動時にファイル一覧を取得
   useEffect(() => {
-    fetch("http://localhost:3001/api/list-files")
+    fetch(api("/api/list-files"))
       .then((res) => res.json())
       .then((files: string[]) => {
         setFileList(files);
@@ -125,7 +128,7 @@ function App() {
   }, []);
 
   useEffect(() => {
-    fetch("http://localhost:3001/api/list-shift-dirs")
+    fetch(api("/api/list-shift-dirs"))
       .then((res) => res.json())
       .then((dirs) => {
         setShiftDirs(dirs);
@@ -149,7 +152,7 @@ function App() {
     try {
       console.log("run-python fetch開始");
       const res = await fetch(
-        `http://localhost:3001/api/load-json?filename=${selectedFile}`
+        api(`/api/load-json?filename=${selectedFile}`)
       );
       console.log("run-python fetchレスポンス", res);
       if (!res.ok) {
@@ -211,7 +214,7 @@ function App() {
       };
 
       const res = await fetch(
-        `http://localhost:3001/api/save-json?filename=${saveFilename}&key=normal`,
+        api(`/api/save-json?filename=${saveFilename}&key=normal`),
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -221,7 +224,7 @@ function App() {
       if (res.ok) {
         alert(`${saveFilename}.json として保存しました！`);
         const updatedList = await fetch(
-          "http://localhost:3001/api/list-files"
+          api("/api/list-shift-dirs")
         ).then((r) => r.json());
         setFileList(updatedList);
         setSaveFilename("");
@@ -237,13 +240,13 @@ function App() {
   const handleDeleteFile = async (filename: string) => {
     if (!window.confirm(`${filename}.json を削除しますか？`)) return;
     try {
-      const res = await fetch(`http://localhost:3001/api/delete-json?filename=${filename}`, {
+      const res = await fetch(api(`/api/delete-json?filename=${filename}`), {
         method: "DELETE",
       });
       if (res.ok) {
         alert(`${filename}.json を削除しました`);
         // 再取得
-        const updatedList = await fetch("http://localhost:3001/api/list-files").then((r) => r.json());
+        const updatedList = await fetch(api("/api/list-files")).then((r) => r.json());
         setFileList(updatedList);
         setSelectedFile(""); // 選択も解除
         setCsvTargetFile(""); // csv出力対象も解除
@@ -286,7 +289,7 @@ function App() {
       };
 
       const res = await fetch(
-        `http://localhost:3001/api/save-json?filename=${selectedFile}&key=normal`, // ←ここをselectedFileに！
+        api(`/api/save-json?filename=${selectedFile}&key=normal`), // ←ここをselectedFileに！
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -296,7 +299,7 @@ function App() {
       if (res.ok) {
         alert(`${selectedFile}.json を上書き保存しました！`); // ここもselectedFile
         const updatedList = await fetch(
-          "http://localhost:3001/api/list-files"
+          api("/api/list-files")
         ).then((r) => r.json());
         setFileList(updatedList);
         // setSaveFilename(""); ← これは上書き時は不要
@@ -547,7 +550,7 @@ function App() {
     try {
       // 1. 選択ファイルの内容を取得
       const getRes = await fetch(
-        `http://localhost:3001/api/load-json?filename=${csvTargetFile}`
+        api(`/api/load-json?filename=${csvTargetFile}`)
       );
       if (!getRes.ok) {
         alert("jsonの読み込みに失敗しました");
@@ -558,7 +561,7 @@ function App() {
 
       // 2. define.json として保存
       const saveRes = await fetch(
-        "http://localhost:3001/api/save-json?filename=define&key=define",
+        api(`/api/save-json?filename=define&key=define`), // define.jsonとして保存)
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -572,7 +575,7 @@ function App() {
       }
 
       // 3. python計算（run-python, define.json使用）
-      const runRes = await fetch("http://localhost:3001/api/run-python", {
+      const runRes = await fetch(api("/api/run-python"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ filename: csvTargetFile }), // ←ここは動的なjson名でOK
@@ -632,7 +635,7 @@ function App() {
         {zipUrl && zipFileName && (
           <div style={{ marginTop: 18 }}>
             <b>CSV出力完了：</b><br />
-            <a href={`http://localhost:3001${zipUrl}`} download={zipFileName}>
+            <a href={api(`${zipUrl}`)} download={zipFileName}>
               作成したシフトをダウンロード
             </a>
             <br />
@@ -663,7 +666,7 @@ function App() {
                     {shiftDirs.map(({ dirName, mtime }) => (
                       <li key={dirName} style={{ margin: "8px 0" }}>
                         <a
-                          href={`http://localhost:3001/download_zip/${dirName}`}
+                          href={api(`/download_zip/${dirName}`)}
                           download={`${dirName}.zip`}
                           style={{ marginRight: 16 }}
                         >

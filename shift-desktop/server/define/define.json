@@ -1,5 +1,5 @@
 {
-  "year": 2027,
+  "year": 2025,
   "roles": {
     "統括": {
       "type": "employee",
@@ -7,43 +7,31 @@
     },
     "副統括": {
       "type": "employee",
-      "count": 2
+      "count": 1
     },
     "火葬員": {
       "type": "employee",
-      "count": 9
+      "count": 6
     },
     "清掃員": {
       "type": "employee",
-      "count": 7
+      "count": 4
     },
     "売店従業員": {
       "type": "employee",
-      "count": 7
+      "count": 3
     },
     "霊柩運送員": {
       "type": "employee",
-      "count": 7
+      "count": 3
     },
     "パート長": {
       "type": "part_timer",
-      "count": 7
+      "count": 4
     },
     "パート短": {
       "type": "part_timer",
-      "count": 7
-    },
-    "火葬業務統括": {
-      "type": "employee",
-      "count": 1
-    },
-    "葬副統括": {
-      "type": "employee",
-      "count": 1
-    },
-    "事務員": {
-      "type": "employee",
-      "count": 3
+      "count": 4
     }
   },
   "daily_requirements": {
@@ -66,16 +54,16 @@
       "friend_max": 1
     },
     "人火葬": {
-      "normal_min": 4,
-      "normal_max": 4,
-      "friend_min": 4,
-      "friend_max": 4
+      "normal_min": 6,
+      "normal_max": 7,
+      "friend_min": 5,
+      "friend_max": 5
     },
     "動物火葬": {
       "normal_min": 1,
-      "normal_max": 1,
+      "normal_max": 2,
       "friend_min": 1,
-      "friend_max": 1
+      "friend_max": 2
     },
     "運送": {
       "normal_min": 2,
@@ -90,10 +78,10 @@
       "friend_max": 2
     },
     "売店": {
-      "normal_min": 1,
-      "normal_max": 1,
-      "friend_min": 1,
-      "friend_max": 1
+      "normal_min": 2,
+      "normal_max": 2,
+      "friend_min": 2,
+      "friend_max": 2
     }
   },
   "role_capability": {
@@ -120,7 +108,7 @@
         "火葬業務統括"
       ],
       "secondary": [
-        "葬副統括"
+        "火葬業務副統括"
       ],
       "third": []
     },
@@ -162,10 +150,7 @@
       "primary": [
         "売店従業員"
       ],
-      "secondary": [
-        "パート長",
-        "パート短"
-      ],
+      "secondary": [],
       "third": []
     }
   },
@@ -173,11 +158,11 @@
     "employee": {
       "weekly_days_off": 2,
       "max_consecutive_days": 7,
-      "min_monthly_workdays": 0
+      "min_monthly_workdays": 20
     },
     "part_timer": {
-      "weekly_days_off": 1,
-      "max_consecutive_days": 7,
+      "weekly_days_off": 0,
+      "max_consecutive_days": 3,
       "min_monthly_workdays": 0
     },
     "dummy": {
@@ -194,10 +179,7 @@
     "売店従業員",
     "霊柩運送員",
     "パート長",
-    "パート短",
-    "火葬業務統括",
-    "葬副統括",
-    "事務員"
+    "パート短"
   ],
   "requirementOrder": [
     "責任者",
