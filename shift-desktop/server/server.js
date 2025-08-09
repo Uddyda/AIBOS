@@ -25,6 +25,7 @@ console.log("[BOOT] USER_DATA_DIR :", USER_DATA_DIR);
 console.log("[BOOT] PYTHON_BIN    :", PYTHON_BIN);
 console.log("[BOOT] RESOURCES_DIR :", RESOURCES_DIR);
 
+
 // ------------ 書込み系ディレクトリ ------------
 const OUTPUT_DIR = path.join(USER_DATA_DIR, "output_json");
 const OUTPUT_CSV = path.join(USER_DATA_DIR, "output_shift");
@@ -35,6 +36,7 @@ const baseDir = path.join(RESOURCES_DIR, "shift_generator");
 
 const MAX_FILE_COUNT = 30;
 const MAX_FILE_AGE_DAYS = 90;
+
 
 // ------------ ミドルウェア ------------
 app.use(cors());
@@ -117,6 +119,7 @@ app.post("/api/save-json", (req, res) => {
     cleanupOldFiles(OUTPUT_DIR);
     res.status(200).send(`ファイルを保存しました: ${path.basename(filePath)}`);
   });
+  console.log("[SAVE] path =>", filePath);
 });
 
 // ------------ ファイル削除 ------------
@@ -134,6 +137,17 @@ app.delete("/api/delete-json", (req, res) => {
     console.error("削除エラー:", e);
     return res.status(500).send("削除に失敗しました");
   }
+});
+
+// ------------ デバッグ用ログ ------------
+app.get('/api/debug-paths', (req, res) => {
+  res.json({
+    APP_ROOT: process.env.APP_ROOT,
+    USER_DATA_DIR: process.env.USER_DATA_DIR,
+    OUTPUT_DIR,
+    DEFINE_JSON_DIRECTORY,
+    RESOURCES_DIR
+  });
 });
 
 // ------------ Python実行（変換→生成） ------------
@@ -210,7 +224,7 @@ app.post("/api/run-python", (req, res) => {
             console.error("shift_generator.py error:", err2);
             return res
               .status(500)
-              .send("shift_generator.py 実行に失敗しました\n" + (stderr2 || String(err2)));
+              .send("shift_generator.py実行に失敗しました\n" + (stderr2 || String(err2)));
           }
 
           res.status(200).json({
