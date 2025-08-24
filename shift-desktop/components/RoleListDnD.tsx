@@ -181,15 +181,17 @@ const RoleListDnD: React.FC<RoleListDnDProps> = ({
 
   return (
     <div style={{
-      fontFamily: '"Noto Sans JP", "Yu Gothic UI", Arial, sans-serif',
-      background: "#f6fafd", // ← 全体に淡い色
-      borderRadius: 18,      // ← 大きめ角丸
-      padding: "24px 18px 16px 18px", // ふんわり余白
-      boxShadow: "0 4px 20px 0 rgba(90,100,140,0.04)",
-      border: "1.5px solid #e0e6ea",
-      margin: "0 auto",
-      maxWidth: 500,
-    }}>
+        fontFamily: '"Noto Sans JP", "Yu Gothic UI", Arial, sans-serif',
+        background: "#f6fafd",
+        borderRadius: 18,
+        padding: "10px 18px 16px 18px",
+        boxShadow: "0 4px 20px 0 rgba(90,100,140,0.04)",
+        border: "1.5px solid #e0e6ea",
+        margin: "0 auto",
+        maxWidth: 600,
+      }}
+    >
+      <h2 style={{ fontWeight: 600, fontSize: 20, marginBottom: 12 }}>役職一覧</h2>
       <div style={{
         marginBottom: 18,
         display: "flex",

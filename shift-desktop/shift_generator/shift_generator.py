@@ -5,8 +5,9 @@ import sys
 import random
 import copy
 import atexit
+import re
 
-# コンソールログ出力用
+
 # コンソールログ出力用（安全版）
 class MultiOut:
     def __init__(self, *streams):
@@ -54,12 +55,18 @@ print("[ga_shift] output_root:", output_root)
 out_dir = os.path.join(output_root, dir_name)
 os.makedirs(out_dir, exist_ok=True)
 os.makedirs(os.path.join(out_dir, "shifts"), exist_ok=True)
-os.makedirs(os.path.join(out_dir, "summary"), exist_ok=True)
+#os.makedirs(os.path.join(out_dir, "summary"), exist_ok=True)
 os.makedirs(os.path.join(out_dir, "work_days"), exist_ok=True)
 
 month_map = {
     "January": 1, "February": 2, "March": 3, "April": 4, "May": 5, "June": 6,
     "July": 7, "August": 8, "September": 9, "October": 10, "November": 11, "December": 12
+}
+# 逆引き用
+num_to_name = {
+    1: "January", 2: "February", 3: "March", 4: "April",
+    5: "May", 6: "June", 7: "July", 8: "August",
+    9: "September", 10: "October", 11: "November", 12: "December"
 }
 
 # ===== 旧コード（無効）：固定パスや current_path, dir_name 直下に出す実装は廃止 =====
@@ -147,11 +154,11 @@ def solve_with_ga(config, days_in_month, friend_days, generations=150, populatio
     # 評価関数（ペナルティ詳細＋違反箇所も記録）
     def calc_penalty(genome):
         penalty_detail = {
-            "min_max": 0, "priority": 0, "rest": 0, "fairness": 0, "dummy": 0
+            "min_max": 0, "priority": 0, "rest": 0, "fairness": 0, "role_headcount": 0, "dummy": 0
         }
         penalty = 0
         violation_log = {
-            "min_max": [], "priority": [], "rest": [], "fairness": [], "dummy": []
+            "min_max": [], "priority": [], "rest": [], "fairness": [], "role_headcount": [], "dummy": []
         }
 
         for d in range(days_in_month):
@@ -237,39 +244,78 @@ def solve_with_ga(config, days_in_month, friend_days, generations=150, populatio
                     "staff": s, "type": "under_min_month", "min": min_month, "works": works
                 })
 
-        # フェア勤務日数（役職単位）
-        pos2staff = {}
+        # === フェア勤務日数（役職ラベル単位）===
+        # 重み（なければ10）。今回は許容差(しきい値)は 0 とし、差があればペナルティ
+        fairness_weight = int(config.get("fairness_weight", 50))
+
+        # 役職ラベルごとにグループ化（ダミー除外）
+        role2staff = {}
         for s in staff_list:
-            pos = staff_positions[s]
-            if pos == "dummy":
+            if staff_positions[s] == "dummy":
                 continue
-            pos2staff.setdefault(pos, []).append(s)
-        for pos, staff_of_pos in pos2staff.items():
-            if len(staff_of_pos) < 2:
-                continue
-            workdays = [sum([1 for d in range(days_in_month) if genome[s][d] != ""]) for s in staff_of_pos]
-            diff = max(workdays) - min(workdays)
-            if pos == "employee":
-                if diff > 3:
-                    penalty_detail["fairness"] += (diff - 1) * 10
-                    penalty += (diff - 1) * 10
-                    violation_log["fairness"].append({
-                        "pos": pos, "max_work": max(workdays), "min_work": min(workdays), "diff": diff
-                    })
-            elif pos == "part_timer":
-                if diff > 3:
-                    penalty_detail["fairness"] += (diff - 3) * 10
-                    penalty += (diff - 3) * 10
-                    violation_log["fairness"].append({
-                        "pos": pos, "max_work": max(workdays), "min_work": min(workdays), "diff": diff
-                    })
-            else:
-                if diff > 1:
-                    penalty_detail["fairness"] += (diff - 1) * 10
-                    penalty += (diff - 1) * 10
-                    violation_log["fairness"].append({
-                        "pos": pos, "max_work": max(workdays), "min_work": min(workdays), "diff": diff
-                    })
+            role = staff_to_role_label(s)
+            role2staff.setdefault(role, []).append(s)
+
+        for role, members in role2staff.items():
+            if len(members) < 2:
+                continue  # 1人しかいない役職は公平性の対象外
+
+            # 役職内の各スタッフの勤務日数
+            workdays_per_staff = {
+                s: sum(1 for d in range(days_in_month) if genome[s][d] != "")
+                for s in members
+            }
+            max_w = max(workdays_per_staff.values())
+            min_w = min(workdays_per_staff.values())
+            diff = max_w - min_w
+
+            if diff > 0 and fairness_weight > 0:
+                add = diff * diff * fairness_weight
+                penalty_detail["fairness"] += add
+                penalty += add
+                # 代表のpos（employee/part_timer）も添えると後で読みやすい
+                pos_rep = staff_positions[members[0]]
+                violation_log["fairness"].append({
+                    "role": role,
+                    "pos": pos_rep,
+                    "max_work": max_w,
+                    "min_work": min_w,
+                    "diff": diff,
+                })
+
+        
+        # === 役職ごとの「使用人数 × 点数」ペナルティ（JSON変更なし） ===
+        ROLE_USAGE_UNIT_PENALTY = 50  # 1人あたりのペナルティ（0で無効化）
+        if ROLE_USAGE_UNIT_PENALTY > 0:
+            # 役職ラベル -> メンバー（dummyは除外）
+            role_members = {}
+            for s in staff_list:
+                if staff_positions[s] == "dummy":
+                    continue
+                role = staff_to_role_label(s)  # 例: 火葬員A → 火葬員
+                role_members.setdefault(role, []).append(s)
+
+            # 各役職の「その月に1日でも勤務したユニーク人数」を数える
+            total_usage_penalty = 0
+            for role, members in role_members.items():
+                used = 0
+                for s in members:
+                    # 1日でも入っていればカウント
+                    for d in range(days_in_month):
+                        if genome[s][d] != "":
+                            used += 1
+                            break
+                # 役職ごとの人数 × 点数 を合算
+                if used > 0:
+                    total_usage_penalty += used * used * ROLE_USAGE_UNIT_PENALTY
+
+            if total_usage_penalty > 0:
+                penalty_detail.setdefault("role_headcount", 0)
+                penalty_detail["role_headcount"] += total_usage_penalty
+                penalty += total_usage_penalty
+
+
+
 
         for s in staff_list:
             if staff_positions[s] == "dummy":
@@ -380,7 +426,7 @@ def summarize_solution(solution, staff_positions, staff_list, days_in_month, wor
 
     # ▼ CSVファイル出力（※ 出力は out_dir 配下に統一）
     df_shift.to_csv(os.path.join(out_dir, "shifts",  f"shift_result{csv_suffix}.csv"),  encoding="utf-8-sig")
-    df_staff_days.to_csv(os.path.join(out_dir, "summary", f"staff_workdays{csv_suffix}.csv"), encoding="utf-8-sig")
+    #df_staff_days.to_csv(os.path.join(out_dir, "summary", f"staff_workdays{csv_suffix}.csv"), encoding="utf-8-sig")
     df_day_summary.to_csv(os.path.join(out_dir, "work_days", f"day_summary{csv_suffix}.csv"),   encoding="utf-8-sig")
 
     return df_staff_days, df_day_summary, df_shift
@@ -437,14 +483,258 @@ def output_violation_log(violation_log, month_key):
     if not any_violation:
         print(f"【{month_key}】制約違反なし（すべての制約を満たしています）")
 
+# 追加：1人あたりの月最大勤務可能日数を概算
+def monthly_capacity_by_constraints(wcon, days_in_month):
+    """
+    就業規則から1人あたりの月最大勤務可能日数を概算する。
+    - 7日間の最大勤務日数: (7 - days_off_per_7days)
+    - 月単位の上限: full_weeks * max_in_7 + min(rem, max_in_7)
+    - 連続勤務上限も考慮し安全側で min を取る
+    """
+    max_in_7 = 7 - int(wcon.get("days_off_per_7days", 0))
+    max_in_7 = max(0, min(7, max_in_7))
+    full_weeks = days_in_month // 7
+    rem = days_in_month % 7
+    by_week_cap = full_weeks * max_in_7 + min(rem, max_in_7)
+
+    max_consec = int(wcon.get("max_consecutive_days", days_in_month))
+    cap = min(by_week_cap, days_in_month, max_consec if max_consec > 0 else days_in_month)
+    return max(0, cap)
+
+# --- 役職名をスタッフ名から復元（末尾の英字 'A','B',... を落とす）---
+ROLE_SUFFIX_RE = re.compile(r"[A-Za-z]$")
+
+def staff_to_role_label(name: str) -> str:
+    name = (name or "").strip()
+    if not name:
+        return name
+    return name[:-1] if ROLE_SUFFIX_RE.search(name) else name
+
+def compute_total_required_workdays_by_worktype(config, days_in_month, friend_days, work_types):
+    """各業務wについて、月内の必要延べ稼働日数(最小値)を集計して dict で返す。"""
+    friend_days_set = set(friend_days)
+    req_map = {w: 0 for w in work_types}
+    for d in range(days_in_month):
+        day_num = d + 1
+        is_friend = (day_num in friend_days_set)
+        for w in work_types:
+            req = config["daily_requirements"][w]
+            if "normal_min" in req and "normal_max" in req:
+                min_req = req["friend_min"] if is_friend and "friend_min" in req else req["normal_min"]
+            else:
+                min_req = req.get("friend", req.get("normal", req.get("normal_min", 0)))
+            req_map[w] += int(min_req)
+    return req_map
+
+def estimate_required_headcount_by_role(config, days_in_month, friend_days, work_types, month_key):
+    """
+    役職ごとの必要人数（絶対値）を推定してコンソール出力する。
+    手順:
+      1) 業務ごとの月必要人日(最小)を算出
+      2) primary だけで貪欲に埋める（各役職を1人ずつ追加し、最もカバーできる役職を選ぶ）
+      3) 残った分を secondary で貪欲に埋める
+      4) 全役職について人数を出力（0人でも出力）
+    """
+    positions = config["positions"]  # {staff_name: "employee"|"part_timer"|"dummy"}
+    priority_map = config["priority_assignments"]  # {work: {primary:[staff], secondary:[staff], ...}}
+
+    # 役職ラベル -> ポジション種別
+    role_pos = {}
+    for s, pos in positions.items():
+        if pos == "dummy":
+            continue
+        role = staff_to_role_label(s)
+        role_pos.setdefault(role, pos)
+
+    # 業務ごとの「この役職なら入れる」集合（primary / secondary）
+    work_primary_roles = {w: set() for w in work_types}
+    work_secondary_roles = {w: set() for w in work_types}
+    for w in work_types:
+        pinfo = priority_map.get(w, {}) or {}
+        for s in pinfo.get("primary", []) or []:
+            r = staff_to_role_label(s)
+            if r in role_pos:
+                work_primary_roles[w].add(r)
+        for s in pinfo.get("secondary", []) or []:
+            r = staff_to_role_label(s)
+            if r in role_pos and r not in work_primary_roles[w]:
+                work_secondary_roles[w].add(r)
+
+    # 各役職の1人あたり月上限cap
+    caps = {}
+    for r, pos in role_pos.items():
+        caps[r] = monthly_capacity_by_constraints(config["work_constraints"].get(pos, {}), days_in_month)
+
+    # 役職ごとの primary / secondary 対応業務リスト
+    primary_w_by_role = {r: [w for w in work_types if r in work_primary_roles[w]] for r in role_pos}
+    secondary_w_by_role = {r: [w for w in work_types if r in work_secondary_roles[w]] for r in role_pos}
+
+    # 業務ごとの月合計必要人日
+    remaining = compute_total_required_workdays_by_worktype(config, days_in_month, friend_days, work_types)
+
+    # 必要人数（役職ごと）— 全役職を0で初期化（0でも最終出力するため）
+    headcount = {r: 0 for r in role_pos}
+
+    # 1) primary だけで貪欲に埋める
+    def simulate_cover(r, tasks):
+        """役職rを1名追加したとき、tasks(=業務リスト)でどれだけ埋められるか"""
+        cap = caps.get(r, 0)
+        if cap <= 0 or not tasks:
+            return 0, {}
+        alloc = {}
+        cover = 0
+        # 残需要の大きい業務から埋める
+        for w in sorted(tasks, key=lambda x: remaining.get(x, 0), reverse=True):
+            if cap == 0:
+                break
+            need = remaining.get(w, 0)
+            if need <= 0:
+                continue
+            take = min(need, cap)
+            alloc[w] = take
+            cover += take
+            cap -= take
+        return cover, alloc
+
+    # stage1: primary
+    while True:
+        total_need = sum(remaining.values())
+        if total_need == 0:
+            break
+        best_r, best_cover, best_alloc = None, 0, {}
+        for r in role_pos:
+            cover, alloc = simulate_cover(r, primary_w_by_role[r])
+            # primary優先: cover が同じなら primary対応数が多い役職を優先
+            score = (cover, len(primary_w_by_role[r]))
+            if score > (best_cover, len(primary_w_by_role.get(best_r, [])) if best_r else 0):
+                best_r, best_cover, best_alloc = r, cover, alloc
+        if best_cover == 0:
+            break  # primary ではこれ以上埋められない
+        headcount[best_r] += 1
+        for w, t in best_alloc.items():
+            remaining[w] -= t
+
+    # 2) secondary で残りを貪欲に埋める
+    while True:
+        total_need = sum(remaining.values())
+        if total_need == 0:
+            break
+        best_r, best_cover, best_alloc = None, 0, {}
+        for r in role_pos:
+            cover, alloc = simulate_cover(r, secondary_w_by_role[r])
+            # tie-break: secondary対応数が多いほう
+            score = (cover, len(secondary_w_by_role[r]))
+            if score > (best_cover, len(secondary_w_by_role.get(best_r, [])) if best_r else 0):
+                best_r, best_cover, best_alloc = r, cover, alloc
+        if best_cover == 0:
+            break  # これ以上埋められない
+        headcount[best_r] += 1
+        for w, t in best_alloc.items():
+            remaining[w] -= t
+
+    # 3) 結果出力（全役職を必ず出す・0人でも）
+    print(f"\n=== {month_key}: 役職ごとの必要人数（絶対値・推定）===")
+    for r in role_pos.keys():
+        pos = role_pos[r]
+        print(f"- {r}: {headcount[r]} 人 ")
+
+    # 4) 未充足が残っていれば知らせる
+    unfilled = {w: v for w, v in remaining.items() if v > 0}
+    if unfilled:
+        print("※ まだ埋まっていない業務があります（この役職構成では不足）:")
+        for w, v in sorted(unfilled.items(), key=lambda x: -x[1]):
+            print(f"  ・{w}: 残り {v} 人日")
+
+    return headcount, remaining
 
 
+
+# 追加：ダミー不足から追加必要人数を推定
+def estimate_additional_headcount_from_dummy(solution, staff_positions, days_in_month, config, month_key):
+    """
+    解(solution)に含まれる 'dummy' の稼働から、不足総日数を算出。
+    employee / part_timer を増やす場合の推奨追加人数を返す。
+    戻り値: dict（JSON/CSV も保存）
+    """
+    # 月内 Dummy 稼働日数（延べ）
+    dummy_days_total = 0
+    for s, pos in staff_positions.items():
+        if pos != "dummy":
+            continue
+        for d in range(days_in_month):
+            if solution[s][d] != "":
+                dummy_days_total += 1
+
+    # 各ポジションの1人あたり上限
+    wcs = config["work_constraints"]
+    caps = {}
+    for pos_key in ["employee", "part_timer"]:
+        if pos_key in wcs:
+            caps[pos_key] = monthly_capacity_by_constraints(wcs[pos_key], days_in_month)
+        else:
+            caps[pos_key] = 0
+
+    # 追加必要人数（切上げ）
+    rec = {
+        "month_key": month_key,
+        "days_in_month": days_in_month,
+        "dummy_workdays_total": dummy_days_total,
+        "per_person_capacity": caps,
+        "recommendation": {}
+    }
+    for pos_key, cap in caps.items():
+        if cap <= 0:
+            rec["recommendation"][pos_key] = None
+        else:
+            need = (dummy_days_total + cap - 1) // cap
+            rec["recommendation"][pos_key] = int(need)
+
+    # 保存
+    df = pd.DataFrame([
+        {
+            "month": month_key,
+            "dummy_workdays_total": dummy_days_total,
+            "per_person_capacity_employee": caps.get("employee", 0),
+            "per_person_capacity_part_timer": caps.get("part_timer", 0),
+            "add_employee_if_chosen": rec["recommendation"].get("employee"),
+            "add_part_timer_if_chosen": rec["recommendation"].get("part_timer"),
+        }
+    ])
+    csv_path = os.path.join(out_dir, "summary", f"recommended_headcount_{month_key}.csv")
+    df.to_csv(csv_path, index=False, encoding="utf-8-sig")
+    json_out_path = os.path.join(out_dir, "summary", f"recommended_headcount_{month_key}.json")
+    with open(json_out_path, "w", encoding="utf-8") as jf:
+        json.dump(rec, jf, ensure_ascii=False, indent=2)
+
+    print(f"\n=== {month_key}: 必要人数の推定 ===")
+    print(df)
+    print(f"- CSV:  {csv_path}")
+    print(f"- JSON: {json_out_path}")
+    return rec
 
 def main():
-    # 必要な月だけ回すならここを調整
-    months_to_process = [
-        "April"
-    ]
+    # 先に new.json を読む
+    base_config = load_config(json_path)
+
+    # new.json の months(YYYYMM) → 英語月名へ変換
+    months_raw = base_config.get("months", [])
+    month_nums = []
+    for m in months_raw:
+        s = str(m)
+        if len(s) >= 2 and s[-2:].isdigit():
+            month_nums.append(int(s[-2:]))
+    months_to_process = [num_to_name[n] for n in month_nums if n in num_to_name]
+    if not months_to_process:
+        months_to_process = ["April"]  # フォールバック
+    print("=== 対象月 ===", months_to_process)
+
+    # ヘッドカウント最適化モード（UIトグル想定）
+    # 互換：mode: "optimize" でも有効化
+    optimize_headcount = bool(base_config.get("optimize_headcount", False)) or base_config.get("mode") == "optimize"
+    if optimize_headcount:
+        print("※ optimize_headcount: ON（不足から追加必要人数を推定します）")
+    else:
+        print("※ optimize_headcount: OFF（従来どおり人数固定でGA）")
 
     # ログは out_dir に出す
     console_log_path = os.path.join(out_dir, "console_log.txt")
@@ -473,9 +763,14 @@ def main():
     friend_days_per_month = []
     month_key_per_month = []
     violation_logs_per_month = []
+    recommendations_per_month = []
 
     for month_key in months_to_process:
         config = load_config(json_path)
+        if "calendar" not in config or month_key not in config["calendar"]:
+            print(f"!!! {month_key} のカレンダー定義が new.json にありません。スキップします。")
+            continue
+
         days_in_month = config["calendar"][month_key]["days_in_month"]
         friend_days = config["calendar"][month_key]["friend_days"]
         print(f"=== {month_key} (days_in_month={days_in_month}) ===")
@@ -532,6 +827,8 @@ def main():
         for k, v in penalty_detail.items():
             print(f"  {k}: {v}")
 
+
+
         # 集計して後から分析
         solutions_per_month.append(solution)
         staff_positions_per_month.append(staff_positions)
@@ -552,12 +849,24 @@ def main():
             work_types_per_month[idx],
             config_per_month[idx],
             friend_days_per_month[idx],
-            month_key_per_month[idx]
+            month_key_per_month[idx], 
         )
         output_violation_log(violation_logs_per_month[idx], month_key_per_month[idx])
 
+
+        # 人数最適化モード：不足から追加必要人数を推定
+        if optimize_headcount:
+            # 業務リストは solve_with_ga の戻り値で変数 work_types が定義済み
+            estimate_required_headcount_by_role(
+                config, days_in_month, friend_days, work_types, month_key
+            )
+
     print("=== 全ての月の処理が完了しました ===")
-    log_file.close()
+    # 明示クローズ（atexitも設定済みだが二重クローズでも安全）
+    try:
+        log_file.close()
+    except Exception:
+        pass
 
 if __name__ == "__main__":
     main()

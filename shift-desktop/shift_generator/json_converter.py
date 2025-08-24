@@ -57,8 +57,16 @@ def create_calendar(year: int, rokuyou_path: str):
 def transform_data(old_json, rokuyou_path: str):
     new_json = {}
 
+    optimize_headcount = old_json.get("optimize_headcount", False)
+    new_json["optimize_headcount"] = optimize_headcount
+
     year = old_json.get("year", 2025)
     new_json["year"] = year
+
+
+    months = old_json.get("months", [])
+    new_json["months"] = months
+
 
     new_json["positions"] = {}
     expanded_roles = {}
@@ -132,6 +140,7 @@ def main():
     print(f"入力: {define_path}")
     print(f"六曜: {rokuyou_path}")
     print(f"出力: {new_json_path}")
+    print(f"old_data: {len(old_data.get('months', []))} months, {len(old_data.get('roles', {}))} roles")
 
 if __name__ == "__main__":
     main()
