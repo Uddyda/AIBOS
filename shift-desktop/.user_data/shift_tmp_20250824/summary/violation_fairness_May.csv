@@ -1,0 +1,8 @@
+﻿role,pos,max_work,min_work,diff
+事務員,employee,17,13,4
+火葬員,employee,19,15,4
+清掃員,employee,18,15,3
+売店従業員,employee,26,23,3
+霊柩運送員,employee,23,22,1
+パート長,part_timer,18,17,1
+パート短,part_timer,18,15,3

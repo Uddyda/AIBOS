@@ -43,6 +43,7 @@ export interface WorkConstraints {
 
 export interface ShiftConfig {
   year: number;
+  months: string[];
   roles: Roles;
   daily_requirements: DailyRequirements;
   role_capability: RoleCapability;

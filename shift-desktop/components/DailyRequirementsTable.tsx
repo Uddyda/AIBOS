@@ -55,7 +55,7 @@ const DailyRequirementsTable: React.FC<DailyRequirementsTableProps> = ({
     <div
       style={{
         fontFamily: '"Noto Sans JP", "Yu Gothic UI", Arial, sans-serif',
-        background: "#fcfbf8",
+        background: "#ffe6e6",
         borderRadius: 18,
         padding: "10px 18px 16px 18px",
         boxShadow: "0 4px 20px 0 rgba(90,100,140,0.04)",

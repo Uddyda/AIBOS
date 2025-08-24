@@ -5,6 +5,7 @@ import type {
   WorkConstraints,
   WorkConstraint,
 } from "../types/shift";
+import YearMonthSelector from "../components/YearMonthSelector";
 import RoleCapabilityDnD from "../components/RoleCapabilityDnD";
 import DailyRequirementsTable from "../components/DailyRequirementsTable";
 import RoleListDnD from "../components/RoleListDnD";
@@ -13,13 +14,63 @@ import WorkConstraintsTable from "../components/WorkConstraintsTable";
 const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:3001";
 const api = (path: string) => `${API_BASE}${path}`;
 
+/** 月候補の型（値はYYYYMM / ラベルはYYYY年M月） */
+type MonthOption = { value: string; label: string };
+
+/** ヘルパー */
+const toYYYYMM = (y: number, m: number) => `${y}${String(m).padStart(2, "0")}`;
+const labelOf = (y: number, m: number) => `${y}年${m}月`;
+
+/** 旧形式を含む months 配列を「YYYYMM」に正規化する */
+const normalizeMonths = (inputs: string[] = [], baseYear: number): string[] => {
+  const out: string[] = [];
+  const push = (v: string) => { if (!out.includes(v)) out.push(v); };
+
+  for (const raw of inputs) {
+    const s = String(raw).trim();
+
+    // 1) 既にYYYYMM（6桁数字）
+    if (/^\d{6}$/.test(s)) {
+      push(s);
+      continue;
+    }
+
+    // 2) 「YYYY年M月」
+    const jp = s.match(/^(\d{4})年(\d{1,2})月$/);
+    if (jp) {
+      const y = parseInt(jp[1], 10);
+      const m = parseInt(jp[2], 10);
+      if (m >= 1 && m <= 12) push(toYYYYMM(y, m));
+      continue;
+    }
+
+    // 3) 「1」〜「12」 → 年度基準：4-12 は当年、1-3 は翌年
+    if (/^\d{1,2}$/.test(s)) {
+      const m = parseInt(s, 10);
+      if (m >= 1 && m <= 12) {
+        const y = (m >= 4) ? baseYear : (baseYear + 1);
+        push(toYYYYMM(y, m));
+      }
+      continue;
+    }
+
+    // それ以外は無視
+  }
+
+  return out.sort();
+};
+
 function App() {
-  // ① シフトデータの状態
+  // ① シフトデータの状態（months は空で開始し、YYYYMMのみを持つ）
   const [data, setData] = useState<ShiftConfig>({
     year: 2025,
+    months: [],
     roles: {
       統括: { type: "employee", count: 1 },
       副統括: { type: "employee", count: 1 },
+      事務員: { type: "employee", count: 2 },
+      火葬業務統括: { type: "employee", count: 1 },
+      火葬業務副統括: { type: "employee", count: 1 },
       火葬員: { type: "employee", count: 6 },
       清掃員: { type: "employee", count: 4 },
       売店従業員: { type: "employee", count: 3 },
@@ -38,63 +89,19 @@ function App() {
       売店: { normal_min: 2, normal_max: 2, friend_min: 2, friend_max: 2 },
     },
     role_capability: {
-      責任者: {
-        primary: ["統括"],
-        secondary: ["副統括"],
-        third: [],
-      },
-      事務: {
-        primary: ["事務員"],
-        secondary: ["副統括"],
-        third: [],
-      },
-      囲炉裏: {
-        primary: ["火葬業務統括"],
-        secondary: ["火葬業務副統括"],
-        third: [],
-      },
-      人火葬: {
-        primary: ["火葬員"],
-        secondary: ["パート長", "パート短"],
-        third: [],
-      },
-      動物火葬: {
-        primary: ["火葬員"],
-        secondary: ["パート長", "パート短"],
-        third: [],
-      },
-      運送: {
-        primary: ["霊柩運送員"],
-        secondary: [],
-        third: [],
-      },
-      清掃: {
-        primary: ["清掃員"],
-        secondary: [],
-        third: [],
-      },
-      売店: {
-        primary: ["売店従業員"],
-        secondary: [],
-        third: [],
-      },
+      責任者: { primary: ["統括"], secondary: ["副統括"], third: [] },
+      事務: { primary: ["事務員"], secondary: ["副統括"], third: [] },
+      囲炉裏: { primary: ["火葬業務統括"], secondary: ["火葬業務副統括"], third: [] },
+      人火葬: { primary: ["火葬員"], secondary: ["パート長", "パート短"], third: [] },
+      動物火葬: { primary: ["火葬員"], secondary: ["パート長", "パート短"], third: [] },
+      運送: { primary: ["霊柩運送員"], secondary: [], third: [] },
+      清掃: { primary: ["清掃員"], secondary: [], third: [] },
+      売店: { primary: ["売店従業員"], secondary: [], third: [] },
     },
     work_constraints: {
-      employee: {
-        weekly_days_off: 2,
-        max_consecutive_days: 7,
-        min_monthly_workdays: 20,
-      },
-      part_timer: {
-        weekly_days_off: 0,
-        max_consecutive_days: 3,
-        min_monthly_workdays: 0,
-      },
-      dummy: {
-        weekly_days_off: 0,
-        max_consecutive_days: 31,
-        min_monthly_workdays: 0,
-      },
+      employee: { weekly_days_off: 2, max_consecutive_days: 7, min_monthly_workdays: 20 },
+      part_timer: { weekly_days_off: 0, max_consecutive_days: 3, min_monthly_workdays: 0 },
+      dummy: { weekly_days_off: 0, max_consecutive_days: 31, min_monthly_workdays: 0 },
     },
   });
 
@@ -106,37 +113,31 @@ function App() {
   const [rolesOrder, setRolesOrder] = useState<string[]>(Object.keys(data.roles));
   const [csvTargetFile, setCsvTargetFile] = useState<string>("");
   const [csvExporting, setCsvExporting] = useState<boolean>(false);
-  const [_, setCsvUrls] = useState<null | {
-    shift: string, summary: string, workDays: string
-  }>(null);
+  const [_, setCsvUrls] = useState<null | { shift: string, summary: string, workDays: string }>(null);
   const [zipUrl, setZipUrl] = useState<string | null>(null);
   const [zipFileName, setZipFileName] = useState<string | null>(null);
   const [shiftDirs, setShiftDirs] = useState<{ dirName: string, mtime: string }[]>([]);
   const [showShiftList, setShowShiftList] = useState(false);
-  
+  const [availableMonths, setAvailableMonths] = useState<MonthOption[]>([]);
+  const [isAllSelected, setIsAllSelected] = useState<boolean>(false);
+  const [mode, setMode] = useState<"fixed" | "optimize">("fixed");
+  const optimizeHeadcount = mode === "optimize";
 
   // ④ 起動時にファイル一覧を取得
   useEffect(() => {
     fetch(api("/api/list-files"))
       .then((res) => res.json())
-      .then((files: string[]) => {
-        setFileList(files);
-      })
-      .catch((err) => {
-        console.error("ファイル一覧取得失敗:", err);
-      });
+      .then((files: string[]) => setFileList(files))
+      .catch((err) => console.error("ファイル一覧取得失敗:", err));
   }, []);
 
   useEffect(() => {
     fetch(api("/api/list-shift-dirs"))
       .then((res) => res.json())
-      .then((dirs) => {
-        setShiftDirs(dirs);
-      })
-      .catch((err) => {
-        console.error("shiftディレクトリ一覧取得失敗:", err);
-      });
+      .then((dirs) => setShiftDirs(dirs))
+      .catch((err) => console.error("shiftディレクトリ一覧取得失敗:", err));
   }, []);
+
   // 日時フォーマット用
   const formatDate = (isoString:string) => {
     const d = new Date(isoString);
@@ -150,23 +151,33 @@ function App() {
       return;
     }
     try {
-      console.log("run-python fetch開始");
-      const res = await fetch(
-        api(`/api/load-json?filename=${selectedFile}`)
-      );
-      console.log("run-python fetchレスポンス", res);
+      const res = await fetch(api(`/api/load-json?filename=${selectedFile}`));
       if (!res.ok) {
-        if (res.status === 404) {
-          alert("指定ファイルは存在しません");
-        } else {
-          alert("読み込みに失敗しました");
-        }
+        if (res.status === 404) alert("指定ファイルは存在しません");
+        else alert("読み込みに失敗しました");
         return;
       }
+
       const loadedData = await res.json();
 
+      // ▼▼ ここで months を正規化 ▼▼
+      loadedData.months = normalizeMonths(
+        loadedData.months || [],
+        loadedData.year || data.year
+      );
+
+      // ▼▼ このブロックを「months 正規化の後」に追加 ▼▼
+      const loadedMode =
+        loadedData.mode === "optimize" || loadedData.optimize_headcount === true
+          ? "optimize"
+          : "fixed";
+      setMode(loadedMode);
+      // ▲▲ ここまで追加 ▲▲
+
+      // データ反映
       setData(loadedData);
 
+      // 並び順の復元
       if (loadedData.requirementOrder) {
         setRequirementOrder(loadedData.requirementOrder);
       } else {
@@ -186,7 +197,7 @@ function App() {
     }
   };
 
-  // ⑥ ファイル保存と削除
+
   const handleSaveFile = async () => {
     if (!saveFilename) {
       alert("ファイル名を入力してください");
@@ -194,16 +205,17 @@ function App() {
     }
     try {
       const orderedRoles: { [key: string]: { type: string; count: number } } = {};
-      rolesOrder.forEach(key => {
+      rolesOrder.forEach((key) => {
         if (data.roles[key]) orderedRoles[key] = data.roles[key];
       });
       const orderedDailyRequirements: { [key: string]: DailyRequirement } = {};
       const orderedRoleCapability: { [key: string]: { primary: string[]; secondary: string[]; third?: string[] } } = {};
-      requirementOrder.forEach(key => {
+      requirementOrder.forEach((key) => {
         if (data.daily_requirements[key]) orderedDailyRequirements[key] = data.daily_requirements[key];
         if (data.role_capability[key]) orderedRoleCapability[key] = data.role_capability[key];
       });
 
+      const normalizedMonths = normalizeMonths(data.months, data.year);
       const dataToSave = {
         ...data,
         roles: orderedRoles,
@@ -211,23 +223,24 @@ function App() {
         role_capability: orderedRoleCapability,
         rolesOrder,
         requirementOrder,
+        months: normalizedMonths,
+        mode,                               // "fixed" | "optimize"
+        optimize_headcount: optimizeHeadcount,
       };
 
-      const res = await fetch(
-        api(`/api/save-json?filename=${saveFilename}&key=normal`),
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(dataToSave),
-        }
-      );
+      const res = await fetch(api(`/api/save-json?filename=${saveFilename}&key=normal`), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(dataToSave),
+      });
+
       if (res.ok) {
         alert(`${saveFilename}.json として保存しました！`);
         try {
-          const updatedList = await fetch("http://localhost:3001/api/list-files").then(r => r.json());
+          const updatedList = await fetch(api("/api/list-files")).then(r => r.json());
           setFileList(updatedList);
         } catch (e) {
-          console.error("[frontend] refresh list failed", e); // ←追加
+          console.error("[frontend] refresh list failed", e);
         }
         setSaveFilename("");
       } else {
@@ -242,16 +255,13 @@ function App() {
   const handleDeleteFile = async (filename: string) => {
     if (!window.confirm(`${filename}.json を削除しますか？`)) return;
     try {
-      const res = await fetch(api(`/api/delete-json?filename=${filename}`), {
-        method: "DELETE",
-      });
+      const res = await fetch(api(`/api/delete-json?filename=${filename}`), { method: "DELETE" });
       if (res.ok) {
         alert(`${filename}.json を削除しました`);
-        // 再取得
         const updatedList = await fetch(api("/api/list-files")).then((r) => r.json());
         setFileList(updatedList);
-        setSelectedFile(""); // 選択も解除
-        setCsvTargetFile(""); // csv出力対象も解除
+        setSelectedFile("");
+        setCsvTargetFile("");
       } else {
         alert("削除に失敗しました");
       }
@@ -262,13 +272,10 @@ function App() {
   };
 
   const handleOverwriteFile = async () => {
-    // ファイルが選択されていない場合は警告
     if (!selectedFile) {
       alert("上書き保存するファイルを選択してください");
       return;
     }
-  
-    // ここ以降はhandleSaveFileと同じ！
     try {
       const orderedRoles: { [key: string]: { type: string; count: number } } = {};
       rolesOrder.forEach(key => {
@@ -281,6 +288,8 @@ function App() {
         if (data.role_capability[key]) orderedRoleCapability[key] = data.role_capability[key];
       });
 
+      const normalizedMonths = normalizeMonths(data.months, data.year);
+
       const dataToSave = {
         ...data,
         roles: orderedRoles,
@@ -288,23 +297,21 @@ function App() {
         role_capability: orderedRoleCapability,
         rolesOrder,
         requirementOrder,
+        months: normalizedMonths,
+        mode,                               // "fixed" | "optimize"
+        optimize_headcount: optimizeHeadcount,
       };
 
-      const res = await fetch(
-        api(`/api/save-json?filename=${selectedFile}&key=normal`), // ←ここをselectedFileに！
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(dataToSave),
-        }
-      );
+      const res = await fetch(api(`/api/save-json?filename=${selectedFile}&key=normal`), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(dataToSave),
+      });
+
       if (res.ok) {
-        alert(`${selectedFile}.json を上書き保存しました！`); // ここもselectedFile
-        const updatedList = await fetch(
-          api("/api/list-files")
-        ).then((r) => r.json());
+        alert(`${selectedFile}.json を上書き保存しました！`);
+        const updatedList = await fetch(api("/api/list-files")).then((r) => r.json());
         setFileList(updatedList);
-        // setSaveFilename(""); ← これは上書き時は不要
       } else {
         alert("上書き保存に失敗しました。");
       }
@@ -313,8 +320,49 @@ function App() {
       alert("エラーが発生しました。");
     }
   };
-  
-  
+
+  // ⑥ 年度変更
+  const handleYearChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setData((prevData) => ({ ...prevData, year: parseInt(e.target.value) }));
+  };
+
+  // ⑥-2 月のトグル（value は YYYYMM）
+  const handleMonthChange = (monthYYYYMM: string, isChecked: boolean) => {
+    setData((prev) => {
+      let newMonths = prev.months.slice();
+      if (isChecked) {
+        if (!newMonths.includes(monthYYYYMM)) newMonths.push(monthYYYYMM);
+      } else {
+        newMonths = newMonths.filter((m) => m !== monthYYYYMM);
+      }
+      return { ...prev, months: newMonths.sort() };
+    });
+  };
+
+  // 全選択/選択解除ボタンの切り替え
+  const toggleSelectAll = () => {
+    setIsAllSelected((prev) => {
+      const newSelectState = !prev;
+      if (newSelectState) {
+        setData((prevData) => ({
+          ...prevData,
+          months: availableMonths.map((opt) => opt.value),
+        }));
+      } else {
+        setData((prevData) => ({ ...prevData, months: [] }));
+      }
+      return newSelectState;
+    });
+  };
+
+  // 年度変更時に利用可能な月（4〜12当年 / 1〜3翌年）を YYYYMM＋ラベル で更新
+  useEffect(() => {
+    const y = data.year;
+    const opts: MonthOption[] = [];
+    for (let m = 4; m <= 12; m++) opts.push({ value: toYYYYMM(y, m), label: labelOf(y, m) });
+    for (let m = 1; m <= 3; m++)  opts.push({ value: toYYYYMM(y + 1, m), label: labelOf(y + 1, m) });
+    setAvailableMonths(opts);
+  }, [data.year]);
 
   // ⑦ 役職の編集ハンドラ
   const handleRoleChange = (
@@ -337,10 +385,7 @@ function App() {
   const handleAddRole = (roleKey: string, type: "employee" | "part_timer") => {
     setData(prev => ({
       ...prev,
-      roles: {
-        ...prev.roles,
-        [roleKey]: { type, count: 1 }
-      }
+      roles: { ...prev.roles, [roleKey]: { type, count: 1 } }
     }));
     setRolesOrder(prev => prev.includes(roleKey) ? prev : [...prev, roleKey]);
   };
@@ -349,9 +394,8 @@ function App() {
     setData(prev => {
       const newRoles = { ...prev.roles };
       delete newRoles[roleKey];
-  
+
       const newRoleCap = { ...prev.role_capability };
-      // --- ここをprimary/secondaryのみで回す ---
       const levels: Array<'primary' | 'secondary'> = ['primary', 'secondary'];
       Object.keys(newRoleCap).forEach(capKey => {
         levels.forEach(level => {
@@ -360,13 +404,12 @@ function App() {
           }
         });
       });
-  
+
       return { ...prev, roles: newRoles, role_capability: newRoleCap };
     });
     setRolesOrder(prev => prev.filter(key => key !== roleKey));
   };
 
-  // 未使用の役職を取得
   const getUnusedRoles = () => {
     const usedSet = new Set<string>();
     const levels: Array<'primary' | 'secondary'> = ['primary', 'secondary'];
@@ -379,8 +422,7 @@ function App() {
     });
     return Object.keys(data.roles).filter(roleKey => !usedSet.has(roleKey));
   };
-  const unusedRoles = getUnusedRoles(); 
-  
+  const unusedRoles = getUnusedRoles();
 
   // ⑧ Daily Requirements の編集ハンドラ
   const handleDailyRequirementChange = (
@@ -422,11 +464,7 @@ function App() {
       delete newReqs[key];
       const newRoleCaps = { ...prev.role_capability };
       delete newRoleCaps[key];
-      return {
-        ...prev,
-        daily_requirements: newReqs,
-        role_capability: newRoleCaps
-      };
+      return { ...prev, daily_requirements: newReqs, role_capability: newRoleCaps };
     });
     setRequirementOrder(prev => prev.filter(k => k !== key));
   };
@@ -441,10 +479,7 @@ function App() {
       ...prev,
       role_capability: {
         ...prev.role_capability,
-        [capKey]: {
-          ...prev.role_capability[capKey],
-          [level]: newArr,
-        },
+        [capKey]: { ...prev.role_capability[capKey], [level]: newArr },
       },
     }));
   };
@@ -463,10 +498,7 @@ function App() {
         ...prev,
         role_capability: {
           ...prev.role_capability,
-          [capKey]: {
-            ...prev.role_capability[capKey],
-            [level]: newArr,
-          },
+          [capKey]: { ...prev.role_capability[capKey], [level]: newArr },
         },
       };
     });
@@ -485,10 +517,7 @@ function App() {
         ...prev,
         role_capability: {
           ...prev.role_capability,
-          [capKey]: {
-            ...prev.role_capability[capKey],
-            [level]: newArr,
-          },
+          [capKey]: { ...prev.role_capability[capKey], [level]: newArr },
         },
       };
     });
@@ -510,10 +539,7 @@ function App() {
         ...prev,
         role_capability: {
           ...prev.role_capability,
-          [capKey]: {
-            ...prev.role_capability[capKey],
-            [level]: [...arr, value],
-          },
+          [capKey]: { ...prev.role_capability[capKey], [level]: [...arr, value] },
         },
       };
     });
@@ -530,18 +556,13 @@ function App() {
       ...prev,
       work_constraints: {
         ...prev.work_constraints,
-        [typeKey]: {
-          ...prev.work_constraints[typeKey],
-          [field]: value,
-        },
+        [typeKey]: { ...prev.work_constraints[typeKey], [field]: value },
       },
     }));
   };
 
   // ⑫ 実行ボタン：define.jsonへコピー→計算→DLリンク
   const handleRunWithDefineCopy = async () => {
-    console.log("実行ボタンが押された");
-
     setCsvExporting(true);
     setCsvUrls(null);
     if (!csvTargetFile) {
@@ -551,9 +572,7 @@ function App() {
     }
     try {
       // 1. 選択ファイルの内容を取得
-      const getRes = await fetch(
-        api(`/api/load-json?filename=${csvTargetFile}`)
-      );
+      const getRes = await fetch(api(`/api/load-json?filename=${csvTargetFile}`));
       if (!getRes.ok) {
         alert("jsonの読み込みに失敗しました");
         setCsvExporting(false);
@@ -562,14 +581,13 @@ function App() {
       const fileData = await getRes.json();
 
       // 2. define.json として保存
-      const saveRes = await fetch(
-        api(`/api/save-json?filename=define&key=define`), // define.jsonとして保存)
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(fileData),
-        }
-      );
+      fileData.mode = mode; // "fixed" | "optimize"
+      fileData.optimize_headcount = optimizeHeadcount;
+      const saveRes = await fetch(api(`/api/save-json?filename=define&key=define`), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(fileData),
+      });
       if (!saveRes.ok) {
         alert("define.json として保存に失敗しました。");
         setCsvExporting(false);
@@ -580,7 +598,7 @@ function App() {
       const runRes = await fetch(api("/api/run-python"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ filename: csvTargetFile }), // ←ここは動的なjson名でOK
+        body: JSON.stringify({ filename: csvTargetFile }),
       });
       if (runRes.ok) {
         const { zipFileName, zipUrl } = await runRes.json();
@@ -593,7 +611,7 @@ function App() {
       alert("サーバーに接続できませんでした");
       console.error(err);
     }
-      setCsvExporting(false);
+    setCsvExporting(false);
   };
 
   // =========================
@@ -606,6 +624,27 @@ function App() {
       {/* CSV出力エリア */}
       <section style={{ border: "1px solid #82c5fc", padding: 10, marginBottom: 24 }}>
         <h2>CSV出力（実行）</h2>
+        <label
+            title="ON: 就業規則を満たすための追加必要人数を推定 / OFF: 現在人数のまま最善解＆違反レポート"
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 8,
+              padding: "3px 5px",
+              borderRadius: 999,
+              border: "1px solid #cbd5e1",
+              background: optimizeHeadcount ? "#e7fff2" : "#f1f5f9"
+            }}
+          >
+            <input
+              type="checkbox"
+              checked={optimizeHeadcount}
+              onChange={(e) => setMode(e.target.checked ? "optimize" : "fixed")}
+            />
+            <span style={{ fontWeight: 600 }}>
+              人数最適化（追加人数推定）
+            </span>
+          </label>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           <select
             value={csvTargetFile}
@@ -645,50 +684,48 @@ function App() {
         )}
 
         <div style={{ marginTop: 18 }}>
-              <button
-                onClick={() => setShowShiftList(v => !v)}
-                style={{
-                  background: "linear-gradient(90deg,#c1d0ff,#e0ffe0)",
-                  color: "#224",
-                  fontWeight: 600,
-                  fontSize: 16,
-                  border: "none",
-                  borderRadius: 8,
-                  padding: "6px 22px",
-                  cursor: "pointer"
-                }}
-              >
-                過去のダウンロードリンクはこちら
-              </button>
-              {showShiftList && (
-                <div style={{ marginTop: 16 }}>
-                  <b>過去のシフト出力（最大10件）</b>
-                  <ul>
-                    {shiftDirs.length === 0 && <li>まだ出力履歴がありません</li>}
-                    {shiftDirs.map(({ dirName, mtime }) => (
-                      <li key={dirName} style={{ margin: "8px 0" }}>
-                        <a
-                          href={api(`/download_zip/${dirName}`)}
-                          download={`${dirName}.zip`}
-                          style={{ marginRight: 16 }}
-                        >
-                          {dirName}.zip
-                        </a>
-                        <span style={{ color: "#888", fontSize: 14 }}>
-                          （作成日時: {formatDate(mtime)}）
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
+          <button
+            onClick={() => setShowShiftList(v => !v)}
+            style={{
+              background: "linear-gradient(90deg,#c1d0ff,#e0ffe0)",
+              color: "#224",
+              fontWeight: 600,
+              fontSize: 16,
+              border: "none",
+              borderRadius: 8,
+              padding: "6px 22px",
+              cursor: "pointer"
+            }}
+          >
+            過去のダウンロードリンクはこちら
+          </button>
+          {showShiftList && (
+            <div style={{ marginTop: 16 }}>
+              <b>過去のシフト出力（最大10件）</b>
+              <ul>
+                {shiftDirs.length === 0 && <li>まだ出力履歴がありません</li>}
+                {shiftDirs.map(({ dirName, mtime }) => (
+                  <li key={dirName} style={{ margin: "8px 0" }}>
+                    <a
+                      href={api(`/download_zip/${dirName}`)}
+                      download={`${dirName}.zip`}
+                      style={{ marginRight: 16 }}
+                    >
+                      {dirName}.zip
+                    </a>
+                    <span style={{ color: "#888", fontSize: 14 }}>
+                      （作成日時: {formatDate(mtime)}）
+                    </span>
+                  </li>
+                ))}
+              </ul>
             </div>
+          )}
+        </div>
       </section>
 
       {/* ファイル操作エリア */}
-      <section
-        style={{ border: "1px solid #ccc", padding: 10, marginBottom: 20 }}
-      >
+      <section style={{ border: "1px solid #ccc", padding: 10, marginBottom: 20 }}>
         <h2>ファイル操作</h2>
         <div style={{ marginBottom: 10 }}>
           <label>新たに名前を指定して保存: </label>
@@ -718,7 +755,6 @@ function App() {
           <button onClick={handleLoadFile} style={{ marginLeft: 8 }}>
             読み込み
           </button>
-          {/* ここが「上書き保存」ボタン！ */}
           {selectedFile && (
             <button
               onClick={handleOverwriteFile}
@@ -726,7 +762,7 @@ function App() {
                 marginLeft: 8,
                 padding: "6px 22px",
                 borderRadius: 8,
-                background: "linear-gradient(90deg,#ffe48e,#b1ffb1)", // 黄緑グラデ
+                background: "linear-gradient(90deg,#ffe48e,#b1ffb1)",
                 color: "#224",
                 fontWeight: 600,
                 fontSize: 16,
@@ -738,7 +774,6 @@ function App() {
               上書き保存
             </button>
           )}
-          {/* 削除ボタン */}
           {selectedFile && (
             <button
               onClick={() => handleDeleteFile(selectedFile)}
@@ -746,7 +781,7 @@ function App() {
                 marginLeft: 8,
                 padding: "6px 22px",
                 borderRadius: 8,
-                background: "linear-gradient(90deg,#ff8e8e,#ffd1b1)", // 赤系グラデ推奨
+                background: "linear-gradient(90deg,#ff8e8e,#ffd1b1)",
                 color: "#224",
                 fontWeight: 600,
                 fontSize: 16,
@@ -762,24 +797,17 @@ function App() {
       </section>
 
       {/* 年の設定 */}
-      <section style={{ marginBottom: 20 }}>
-        <h2>年度指定</h2>
-        <label>年度(西暦4桁): </label>
-        <input
-          type="number"
-          value={data.year || ""}
-          onChange={(e) =>
-            setData((prev) => ({
-              ...prev,
-              year: Number(e.target.value),
-            }))
-          }
-        />
-      </section>
+      <YearMonthSelector
+        onYearChange={handleYearChange}
+        onMonthChange={handleMonthChange}
+        months={data.months}
+        isAllSelected={isAllSelected}
+        toggleSelectAll={toggleSelectAll}
+        year={data.year}
+      />
 
-      <div style={{ display: "flex", gap: 40, alignItems: "flex-start" }}>
+      <div style={{ display: "flex", gap: 40, alignItems: "flex-start", marginTop: "30px" }}>
         <div style={{ flex: 1 }}>
-          <h2>役職一覧</h2>
           <RoleListDnD
             roles={data.roles}
             order={rolesOrder}

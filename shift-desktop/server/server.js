@@ -72,17 +72,20 @@ app.get("/api/diag", (req, res) => {
 
 // ------------ ファイル一覧取得 ------------
 app.get("/api/list-files", (req, res) => {
-  try {
-    const files = fs
-      .readdirSync(OUTPUT_DIR)
-      .filter((f) => f.endsWith(".json"))
-      .map((f) => path.parse(f).name);
-    res.status(200).json(files);
-  } catch (err) {
-    console.error("ファイル一覧取得エラー:", err);
-    res.status(500).send("ファイル一覧取得に失敗しました");
-  }
+  console.log("GET /api/list-files called");
+
+  // 非同期でファイル一覧を取得
+  fs.readdir(OUTPUT_DIR, (err, files) => {
+    if (err) {
+      console.error("ファイル一覧取得エラー:", err);
+      return res.status(500).send("ファイル一覧取得に失敗しました");
+    }
+    const jsonFiles = files.filter((f) => f.endsWith(".json")).map((f) => path.parse(f).name);
+    console.log("json files:", jsonFiles);
+    res.status(200).json(jsonFiles);  // 非同期で取得したファイルを返す
+  });
 });
+
 
 // ------------ ファイル読み込み ------------
 app.get("/api/load-json", (req, res) => {

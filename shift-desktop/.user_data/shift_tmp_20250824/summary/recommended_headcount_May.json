@@ -1,0 +1,13 @@
+{
+  "month_key": "May",
+  "days_in_month": 31,
+  "dummy_workdays_total": 0,
+  "per_person_capacity": {
+    "employee": 7,
+    "part_timer": 3
+  },
+  "recommendation": {
+    "employee": 0,
+    "part_timer": 0
+  }
+}

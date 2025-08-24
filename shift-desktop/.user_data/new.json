@@ -1,8 +1,16 @@
 {
-  "year": 2027,
+  "optimize_headcount": true,
+  "year": 2029,
+  "months": [
+    "202905"
+  ],
   "positions": {
     "統括A": "employee",
     "副統括A": "employee",
+    "事務員A": "employee",
+    "事務員B": "employee",
+    "火葬業務統括A": "employee",
+    "火葬業務副統括A": "employee",
     "火葬員A": "employee",
     "火葬員B": "employee",
     "火葬員C": "employee",
@@ -19,11 +27,6 @@
     "霊柩運送員A": "employee",
     "霊柩運送員B": "employee",
     "霊柩運送員C": "employee",
-    "剣士A": "employee",
-    "剣士B": "employee",
-    "剣士C": "employee",
-    "剣士D": "employee",
-    "海賊王A": "employee",
     "パート長A": "part_timer",
     "パート長B": "part_timer",
     "パート長C": "part_timer",
@@ -85,7 +88,10 @@
       ]
     },
     "事務": {
-      "primary": [],
+      "primary": [
+        "事務員A",
+        "事務員B"
+      ],
       "secondary": [
         "副統括A"
       ],
@@ -113,8 +119,12 @@
       ]
     },
     "囲炉裏": {
-      "primary": [],
-      "secondary": [],
+      "primary": [
+        "火葬業務統括A"
+      ],
+      "secondary": [
+        "火葬業務副統括A"
+      ],
       "third": [
         "N1",
         "N2",
@@ -312,39 +322,6 @@
         "N19",
         "N20"
       ]
-    },
-    "火影": {
-      "primary": [
-        "海賊王A"
-      ],
-      "secondary": [
-        "剣士A",
-        "剣士B",
-        "剣士C",
-        "剣士D"
-      ],
-      "third": [
-        "N1",
-        "N2",
-        "N3",
-        "N4",
-        "N5",
-        "N6",
-        "N7",
-        "N8",
-        "N9",
-        "N10",
-        "N11",
-        "N12",
-        "N13",
-        "N14",
-        "N15",
-        "N16",
-        "N17",
-        "N18",
-        "N19",
-        "N20"
-      ]
     }
   },
   "daily_requirements": {
@@ -395,19 +372,13 @@
       "normal_max": 2,
       "friend_min": 2,
       "friend_max": 2
-    },
-    "火影": {
-      "normal_min": 1,
-      "normal_max": 1,
-      "friend_min": 1,
-      "friend_max": 1
     }
   },
   "work_constraints": {
     "employee": {
       "days_off_per_7days": 2,
       "max_consecutive_days": 7,
-      "min_monthly_workdays": 0
+      "min_monthly_workdays": 20
     },
     "part_timer": {
       "days_off_per_7days": 0,
@@ -424,15 +395,75 @@
     "April": {
       "days_in_month": 30,
       "friend_days": [
-        1,
-        12,
-        18,
-        24,
-        30
+        2,
+        8,
+        19,
+        25
       ]
     },
     "May": {
       "days_in_month": 31,
+      "friend_days": [
+        1,
+        7,
+        17,
+        23,
+        29
+      ]
+    },
+    "June": {
+      "days_in_month": 30,
+      "friend_days": [
+        4,
+        10,
+        15,
+        21,
+        27
+      ]
+    },
+    "July": {
+      "days_in_month": 31,
+      "friend_days": [
+        3,
+        9,
+        14,
+        20,
+        26
+      ]
+    },
+    "August": {
+      "days_in_month": 31,
+      "friend_days": [
+        1,
+        7,
+        11,
+        17,
+        23,
+        29
+      ]
+    },
+    "September": {
+      "days_in_month": 30,
+      "friend_days": [
+        4,
+        8,
+        14,
+        20,
+        26
+      ]
+    },
+    "October": {
+      "days_in_month": 31,
+      "friend_days": [
+        2,
+        13,
+        19,
+        25,
+        31
+      ]
+    },
+    "November": {
+      "days_in_month": 30,
       "friend_days": [
         10,
         16,
@@ -440,20 +471,20 @@
         28
       ]
     },
-    "June": {
-      "days_in_month": 30,
+    "December": {
+      "days_in_month": 31,
       "friend_days": [
-        3,
+        4,
         8,
         14,
         20,
         26
       ]
     },
-    "July": {
+    "January": {
       "days_in_month": 31,
       "friend_days": [
-        2,
+        1,
         6,
         12,
         18,
@@ -461,84 +492,24 @@
         30
       ]
     },
-    "August": {
-      "days_in_month": 31,
-      "friend_days": [
-        3,
-        9,
-        15,
-        21,
-        27
-      ]
-    },
-    "September": {
-      "days_in_month": 30,
-      "friend_days": [
-        1,
-        7,
-        13,
-        19,
-        25
-      ]
-    },
-    "October": {
-      "days_in_month": 31,
-      "friend_days": [
-        5,
-        11,
-        17,
-        23
-      ]
-    },
-    "November": {
-      "days_in_month": 30,
-      "friend_days": [
-        2,
-        8,
-        14,
-        20,
-        26
-      ]
-    },
-    "December": {
-      "days_in_month": 31,
-      "friend_days": [
-        1,
-        7,
-        13,
-        19,
-        25,
-        30
-      ]
-    },
-    "January": {
-      "days_in_month": 31,
-      "friend_days": [
-        5,
-        11,
-        17,
-        23,
-        28
-      ]
-    },
     "February": {
-      "days_in_month": 29,
+      "days_in_month": 28,
       "friend_days": [
-        3,
-        9,
-        15,
-        21,
-        25
+        4,
+        10,
+        16,
+        22,
+        28
       ]
     },
     "March": {
       "days_in_month": 31,
       "friend_days": [
-        2,
-        8,
-        14,
-        20,
-        31
+        4,
+        10,
+        16,
+        22,
+        28
       ]
     }
   }
